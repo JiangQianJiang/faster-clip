@@ -224,11 +224,12 @@ export function useClipEdit({
         const editable: EditableSubtitleSegment[] = [];
         const boundary: EditableSubtitleSegment[] = [];
         intersecting.forEach((s, i) => {
-          const segment = {
+          const segment: EditableSubtitleSegment = {
             id: `segment-${i}-${s.start_time_s}-${s.end_time_s}`,
             start_time_s: s.start_time_s,
             end_time_s: s.end_time_s,
             text: s.text,
+            confidence: s.confidence,
           };
           if (isInsideClipWindow(s, windowRange.start, windowRange.end)) {
             editable.push(segment);
