@@ -126,6 +126,13 @@ async def patch_transcript(task_id: str, body: dict):
     if not isinstance(segments, list):
         raise HTTPException(400, detail="segments 必须是数组")
 
+    # Incoming segments represent user-provided data — confidence from ASR is
+    # no longer trustworthy after any client-side modification.  Nullify it
+    # so the frontend does not display stale indicators.
+    for seg in segments:
+        if isinstance(seg, dict):
+            seg["confidence"] = None
+
     transcript_path = OUTPUT_DIR / task_id / "transcript.json"
     if not os.path.isfile(transcript_path):
         raise HTTPException(404, detail="字幕文件不存在，无法编辑")

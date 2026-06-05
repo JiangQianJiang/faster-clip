@@ -184,6 +184,12 @@ def _transcribe_whisper(
                         )
                     segs = _get_attr(resp, "segments", []) or []
                     for s in segs:
+                        avg_logprob = _get_attr(s, "avg_logprob", None)
+                        confidence = (
+                            round(min(math.exp(avg_logprob), 1.0), 4)
+                            if avg_logprob is not None
+                            else None
+                        )
                         all_segments.append(
                             {
                                 "start_time_s": round(
@@ -193,6 +199,7 @@ def _transcribe_whisper(
                                     float(_get_attr(s, "end", 0.0)) + offset, 3
                                 ),
                                 "text": str(_get_attr(s, "text", "")).strip(),
+                                "confidence": confidence,
                             }
                         )
                     break
@@ -376,6 +383,7 @@ def _parse_qwen_results(data: dict) -> list[dict]:
                         "start_time_s": round(s.get("begin_time", 0) / 1000.0, 3),
                         "end_time_s": round(s.get("end_time", 0) / 1000.0, 3),
                         "text": text,
+                        "confidence": None,
                     }
                 )
 

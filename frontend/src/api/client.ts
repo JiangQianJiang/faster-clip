@@ -162,6 +162,8 @@ export interface TranscriptSegment {
   start_time_s: number;
   end_time_s: number;
   text: string;
+  /** ASR confidence score in [0, 1], or null when unavailable. */
+  confidence?: number | null;
 }
 
 export interface TranscriptResponse {

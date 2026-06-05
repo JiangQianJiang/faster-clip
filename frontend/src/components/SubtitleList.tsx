@@ -1,5 +1,5 @@
 import { THEME } from "../theme";
-import type { EditableSubtitleSegment, SegmentIssue } from "../utils/subtitleEditing";
+import { CONFIDENCE, type EditableSubtitleSegment, type SegmentIssue } from "../utils/subtitleEditing";
 
 interface Props {
   segments: EditableSubtitleSegment[];
@@ -12,6 +12,24 @@ interface Props {
   onEditEnd: () => void;
 }
 
+const BORDER_COLORS = {
+  high: "#22c55e",
+  medium: "#f59e0b",
+  low: "#ef4444",
+} as const;
+
+function confidenceBorder(confidence: number | null | undefined): string | undefined {
+  if (confidence == null) return undefined;
+  if (confidence >= CONFIDENCE.HIGH) return BORDER_COLORS.high;
+  if (confidence >= CONFIDENCE.LOW) return BORDER_COLORS.medium;
+  return BORDER_COLORS.low;
+}
+
+function confidenceTooltip(confidence: number | null | undefined): string | undefined {
+  if (confidence == null) return undefined;
+  return `置信度 ${(confidence * 100).toFixed(0)}%`;
+}
+
 export default function SubtitleList({
   segments,
   selectedId,
@@ -22,6 +40,8 @@ export default function SubtitleList({
   onTextChange,
   onEditEnd,
 }: Props) {
+  const hasConfidence = segments.some((s) => s.confidence != null);
+
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", background: THEME.colors.bgWhite }}>
       <div style={{ padding: "10px 12px", borderBottom: `1px solid ${THEME.colors.border}`, fontWeight: 600, fontSize: 13 }}>
@@ -31,14 +51,17 @@ export default function SubtitleList({
         {segments.map((segment, index) => {
           const selected = segment.id === selectedId;
           const rowIssues = issues.get(segment.id) || [];
+          const borderColor = confidenceBorder(segment.confidence);
           return (
             <div
               key={segment.id}
               onClick={() => onSelect(segment.id)}
               onDoubleClick={() => onEditStart(segment.id)}
+              title={confidenceTooltip(segment.confidence)}
               style={{
                 padding: "8px 10px",
                 borderBottom: `1px solid ${THEME.colors.borderLight}`,
+                borderLeft: borderColor ? `3px solid ${borderColor}` : "3px solid transparent",
                 background: selected ? THEME.colors.infoBg : rowIssues.length ? THEME.colors.errorBg : THEME.colors.bgWhite,
                 cursor: "pointer",
               }}
@@ -83,7 +106,7 @@ export default function SubtitleList({
                   }}
                 />
               ) : (
-                <div style={{ fontSize: 13, lineHeight: 1.45, color: THEME.colors.textPrimary, wordBreak: "break-word" }}>
+                <div style={{ fontSize: 13, lineHeight: 1.45, color: THEME.colors.textPrimary, wordBreak: "break-word", whiteSpace: "pre-wrap" }}>
                   {segment.text || <span style={{ color: THEME.colors.textMuted }}>空字幕</span>}
                 </div>
               )}
@@ -91,6 +114,47 @@ export default function SubtitleList({
           );
         })}
       </div>
+      {hasConfidence && (
+        <div
+          style={{
+            padding: "8px 12px",
+            borderTop: `1px solid ${THEME.colors.border}`,
+            display: "flex",
+            gap: 12,
+            fontSize: 12,
+            color: THEME.colors.textSecondary,
+          }}
+        >
+          {[
+            { color: BORDER_COLORS.high, key: "high" },
+            { color: BORDER_COLORS.medium, key: "medium" },
+            { color: BORDER_COLORS.low, key: "low" },
+          ].map(({ color, key }) => {
+            const count = segments.filter((s) => {
+              const c = s.confidence;
+              if (c == null) return false;
+              if (key === "high") return c >= CONFIDENCE.HIGH;
+              if (key === "medium") return c >= CONFIDENCE.LOW && c < CONFIDENCE.HIGH;
+              return c < CONFIDENCE.LOW;
+            }).length;
+            if (count === 0) return null;
+            return (
+              <span key={key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 10,
+                    height: 10,
+                    borderRadius: 2,
+                    background: color,
+                  }}
+                />
+                {count}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

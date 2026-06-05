@@ -5,7 +5,15 @@ export interface EditableSubtitleSegment {
   start_time_s: number;
   end_time_s: number;
   text: string;
+  /** ASR confidence score in [0, 1], or null when unavailable or after editing. */
+  confidence?: number | null;
 }
+
+/** Confidence visualisation thresholds — shared constants, not magic numbers. */
+export const CONFIDENCE = {
+  HIGH: 0.7,
+  LOW: 0.4,
+} as const;
 
 export type SegmentIssue = "重叠" | "非法时长" | "校验错误";
 
@@ -169,8 +177,8 @@ export function splitSegmentAtPlayhead(
   const result = segments.flatMap((segment) => {
     if (segment.id !== id) return [{ ...segment }];
     return [
-      { ...segment, end_time_s: splitAt },
-      { ...segment, id: createSegmentId(), start_time_s: splitAt },
+      { ...segment, end_time_s: splitAt, confidence: null },
+      { ...segment, id: createSegmentId(), start_time_s: splitAt, confidence: null },
     ];
   });
   return sortSegments(result);
@@ -191,6 +199,7 @@ export function moveSegment(
       ...segment,
       start_time_s: start,
       end_time_s: roundSeconds(start + duration),
+      confidence: null,
     };
   }));
 }
@@ -207,9 +216,9 @@ export function resizeSegment(
     if (segment.id !== id) return { ...segment };
     const snapped = clamp(snapToFrame(time, fps), 0, videoDuration);
     if (edge === "start") {
-      return { ...segment, start_time_s: snapped };
+      return { ...segment, start_time_s: snapped, confidence: null };
     }
-    return { ...segment, end_time_s: snapped };
+    return { ...segment, end_time_s: snapped, confidence: null };
   }));
 }
 
@@ -314,6 +323,7 @@ export function moveSegmentClipWindow(
       ...segment,
       start_time_s: start,
       end_time_s: roundSeconds(start + duration),
+      confidence: null,
     };
   }));
 }
@@ -335,11 +345,13 @@ export function resizeSegmentClipWindow(
       return {
         ...segment,
         start_time_s: Math.min(snapped, roundSeconds(segment.end_time_s - minDuration)),
+        confidence: null,
       };
     }
     return {
       ...segment,
       end_time_s: Math.max(snapped, roundSeconds(segment.start_time_s + minDuration)),
+      confidence: null,
     };
   }));
 }
@@ -356,7 +368,7 @@ function applyEdit(segments: EditableSubtitleSegment[], action: EditingAction): 
   switch (action.type) {
     case "SET_TEXT":
       return segments.map((segment) => (
-        segment.id === action.id ? { ...segment, text: action.text } : { ...segment }
+        segment.id === action.id ? { ...segment, text: action.text, confidence: null } : { ...segment }
       ));
     case "ADD_SEGMENT":
       return addSegmentAtPlayhead(segments, action.playhead, action.fps, action.videoDuration);

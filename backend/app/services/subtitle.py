@@ -399,13 +399,14 @@ def get_clip_subtitle_segments(
         rel_end = min(seg["end_time_s"] - window_start, window_dur)
         if rel_end - rel_start <= 0:
             continue
-        result.append(
-            {
-                "start_time_s": round(rel_start, 3),
-                "end_time_s": round(rel_end, 3),
-                "text": seg["text"],
-            }
-        )
+        entry: dict = {
+            "start_time_s": round(rel_start, 3),
+            "end_time_s": round(rel_end, 3),
+            "text": seg["text"],
+        }
+        if "confidence" in seg:
+            entry["confidence"] = seg["confidence"]
+        result.append(entry)
     return result
 
 
@@ -424,6 +425,13 @@ def generate_clip_subtitles(
     logger = logging.getLogger(__name__)
 
     filtered = get_clip_subtitle_segments(segments, window_start, window_end)
+
+    # Apply line-breaker as a safety net for transcripts that predate the
+    # feature.  Idempotent — already-broken text is returned unchanged.
+    from app.services.line_breaker import break_lines
+
+    for seg in filtered:
+        seg["text"] = break_lines(seg["text"])
     fmt_configs = [
         ("srt", segments_to_srt),
         ("vtt", segments_to_vtt),

@@ -9,11 +9,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from app.services.asr import ASRError, AuthError, EmptyTranscript, transcribe
 
 
-def _make_seg_obj(start, end, text):
+def _make_seg_obj(start, end, text, avg_logprob=None):
     s = MagicMock()
     s.start = start
     s.end = end
     s.text = text
+    s.avg_logprob = avg_logprob
     return s
 
 
@@ -367,3 +368,78 @@ def test_transcribe_first_chunk_retry_exhaustion_cleans_all_chunks():
     unlinked = [c[0][0] for c in mock_unlink.call_args_list]
     for p in chunks:
         assert p in unlinked, f"{p} should have been unlinked"
+
+
+# ── confidence extraction from Whisper avg_logprob ─────────────────────────
+
+
+def test_confidence_from_avg_logprob():
+    """avg_logprob is mapped to confidence via exp()."""
+    seg = _make_seg_obj(0.0, 2.0, "hello", avg_logprob=-0.5)
+    client = _mock_client(segments=[seg])
+    with (
+        patch("app.services.asr.OpenAI", return_value=client),
+        patch("app.services.asr._split_audio", return_value=["/f.wav"]),
+        patch("app.services.asr._get_duration", return_value=10.0),
+        patch("app.services.asr.time.sleep"),
+        patch("builtins.open", MagicMock()),
+    ):
+        result = transcribe("/f.wav", "sk-test")
+    assert len(result) == 1
+    assert "confidence" in result[0]
+    assert round(result[0]["confidence"], 2) == 0.61  # exp(-0.5)
+
+
+def test_confidence_low_logprob():
+    """Very negative avg_logprob yields low confidence."""
+    seg = _make_seg_obj(0.0, 2.0, "muffled", avg_logprob=-2.0)
+    client = _mock_client(segments=[seg])
+    with (
+        patch("app.services.asr.OpenAI", return_value=client),
+        patch("app.services.asr._split_audio", return_value=["/f.wav"]),
+        patch("app.services.asr._get_duration", return_value=10.0),
+        patch("app.services.asr.time.sleep"),
+        patch("builtins.open", MagicMock()),
+    ):
+        result = transcribe("/f.wav", "sk-test")
+    assert len(result) == 1
+    assert round(result[0]["confidence"], 2) == 0.14  # exp(-2.0)
+
+
+def test_confidence_missing_avg_logprob():
+    """When avg_logprob is absent, confidence is None."""
+    seg = _make_seg_obj(0.0, 2.0, "hello", avg_logprob=None)
+    client = _mock_client(segments=[seg])
+    with (
+        patch("app.services.asr.OpenAI", return_value=client),
+        patch("app.services.asr._split_audio", return_value=["/f.wav"]),
+        patch("app.services.asr._get_duration", return_value=10.0),
+        patch("app.services.asr.time.sleep"),
+        patch("builtins.open", MagicMock()),
+    ):
+        result = transcribe("/f.wav", "sk-test")
+    assert len(result) == 1
+    assert result[0]["confidence"] is None
+
+
+def test_confidence_dict_segment_with_avg_logprob():
+    """Dict-shaped Whisper segments with avg_logprob get confidence."""
+    client = MagicMock()
+    client.audio.transcriptions.create.return_value = {
+        "segments": [
+            {"start": 0.0, "end": 5.0, "text": "dict seg", "avg_logprob": -0.3}
+        ],
+    }
+    with (
+        patch("app.services.asr.OpenAI", return_value=client),
+        patch("app.services.asr._split_audio", return_value=["/f.wav"]),
+        patch("app.services.asr._get_duration", return_value=10.0),
+        patch("app.services.asr.time.sleep"),
+        patch("builtins.open", MagicMock()),
+    ):
+        result = transcribe("/f.wav", "sk-test")
+    assert len(result) == 1
+    assert "confidence" in result[0]
+    assert result[0]["confidence"] is not None
+    # exp(-0.3) ≈ 0.74
+    assert 0.7 < result[0]["confidence"] < 0.8

@@ -167,6 +167,11 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
                 filtered = get_clip_subtitle_segments(
                     all_segments, window_start, window_end
                 )
+                # Apply line-breaker for transcripts that predate the feature.
+                from app.services.line_breaker import break_lines
+
+                for seg in filtered:
+                    seg["text"] = break_lines(seg["text"])
                 from app.services.subtitle import (
                     segments_to_ass,
                     segments_to_srt,

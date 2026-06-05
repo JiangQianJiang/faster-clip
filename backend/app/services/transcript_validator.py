@@ -99,12 +99,16 @@ def validate_transcript_strict(segments: list) -> str | None:
         start = float(seg["start_time_s"])
         end = float(seg["end_time_s"])
 
-        # Normalize in place
-        segments[i] = {
+        # Normalize in place, preserving optional metadata fields.
+        entry: dict = {
             "start_time_s": round(start, 3),
             "end_time_s": round(end, 3),
             "text": seg["text"].strip(),
         }
+        for key in ("confidence",):
+            if key in seg:
+                entry[key] = seg[key]
+        segments[i] = entry
 
     segments.sort(key=lambda s: (s["start_time_s"], s["end_time_s"]))
     for i in range(1, len(segments)):
@@ -124,8 +128,14 @@ def normalize_transcript(segments: list) -> list:
 
 
 def _normalize_segment(seg: dict) -> dict:
-    return {
+    result = {
         "start_time_s": round(float(seg["start_time_s"]), 3),
         "end_time_s": round(float(seg["end_time_s"]), 3),
         "text": str(seg.get("text", "")).strip(),
     }
+    # Preserve optional metadata fields (e.g. ASR confidence) so they
+    # survive the transcript pipeline end-to-end.
+    for key in ("confidence",):
+        if key in seg:
+            result[key] = seg[key]
+    return result
