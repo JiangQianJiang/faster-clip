@@ -190,20 +190,6 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
                 f.write(content)
         except Exception:
             raise HTTPException(404, detail="字幕文件不存在")
-    elif os.path.isfile(transcript_path):
-        # Sidecar exists but may predate line-breaker — regenerate once.
-        try:
-            from app.services.subtitle import generate_clip_subtitles
-
-            with open(transcript_path, encoding="utf-8") as f:
-                all_segments = json.load(f)
-            window_start = clip.get("export_start_time_s", 0)
-            window_end = clip.get("export_end_time_s", 0)
-            generate_clip_subtitles(
-                all_segments, window_start, window_end, str(OUTPUT_DIR / task_id), idx
-            )
-        except Exception:
-            pass  # best-effort; serve the existing file below
 
     media_types = {"srt": "text/plain", "vtt": "text/plain", "ass": "text/x-ssa"}
     filename = f"clip_{idx:03d}.{format}"
