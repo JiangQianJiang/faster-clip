@@ -195,11 +195,13 @@ export function moveSegment(
     if (segment.id !== id) return { ...segment };
     const duration = segment.end_time_s - segment.start_time_s;
     const start = clamp(snapToFrame(segment.start_time_s + delta, fps), 0, Math.max(0, videoDuration - duration));
+    const end = roundSeconds(start + duration);
+    const timingChanged = start !== segment.start_time_s || end !== segment.end_time_s;
     return {
       ...segment,
       start_time_s: start,
-      end_time_s: roundSeconds(start + duration),
-      confidence: null,
+      end_time_s: end,
+      ...(timingChanged ? { confidence: null } : {}),
     };
   }));
 }
@@ -216,9 +218,11 @@ export function resizeSegment(
     if (segment.id !== id) return { ...segment };
     const snapped = clamp(snapToFrame(time, fps), 0, videoDuration);
     if (edge === "start") {
-      return { ...segment, start_time_s: snapped, confidence: null };
+      const timingChanged = snapped !== segment.start_time_s;
+      return { ...segment, start_time_s: snapped, ...(timingChanged ? { confidence: null } : {}) };
     }
-    return { ...segment, end_time_s: snapped, confidence: null };
+    const timingChanged = snapped !== segment.end_time_s;
+    return { ...segment, end_time_s: snapped, ...(timingChanged ? { confidence: null } : {}) };
   }));
 }
 
@@ -335,11 +339,13 @@ export function moveSegmentClipWindow(
       clipStart,
       Math.max(clipStart, clipEnd - duration),
     );
+    const end = roundSeconds(start + duration);
+    const timingChanged = start !== segment.start_time_s || end !== segment.end_time_s;
     return {
       ...segment,
       start_time_s: start,
-      end_time_s: roundSeconds(start + duration),
-      confidence: null,
+      end_time_s: end,
+      ...(timingChanged ? { confidence: null } : {}),
     };
   }));
 }
@@ -358,16 +364,20 @@ export function resizeSegmentClipWindow(
     if (segment.id !== id) return { ...segment };
     const snapped = clamp(snapToFrame(time, fps), clipStart, clipEnd);
     if (edge === "start") {
+      const newStart = Math.min(snapped, roundSeconds(segment.end_time_s - minDuration));
+      const timingChanged = newStart !== segment.start_time_s;
       return {
         ...segment,
-        start_time_s: Math.min(snapped, roundSeconds(segment.end_time_s - minDuration)),
-        confidence: null,
+        start_time_s: newStart,
+        ...(timingChanged ? { confidence: null } : {}),
       };
     }
+    const newEnd = Math.max(snapped, roundSeconds(segment.start_time_s + minDuration));
+    const timingChanged = newEnd !== segment.end_time_s;
     return {
       ...segment,
-      end_time_s: Math.max(snapped, roundSeconds(segment.start_time_s + minDuration)),
-      confidence: null,
+      end_time_s: newEnd,
+      ...(timingChanged ? { confidence: null } : {}),
     };
   }));
 }
