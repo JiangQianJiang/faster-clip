@@ -126,11 +126,14 @@ async def patch_transcript(task_id: str, body: dict):
     if not isinstance(segments, list):
         raise HTTPException(400, detail="segments 必须是数组")
 
-    # Incoming segments represent user-provided data — confidence from ASR is
-    # no longer trustworthy after any client-side modification.  Nullify it
-    # so the frontend does not display stale indicators.
+    # Incoming segments may have been edited — clear confidence only for
+    # rows the client marks as modified (confidence absent or explicitly
+    # null).  Unmodified rows retain their original confidence value.
     for seg in segments:
         if isinstance(seg, dict):
+            if seg.get("confidence") is not None:
+                # Client preserved a non-null confidence — trust it.
+                continue
             seg["confidence"] = None
 
     transcript_path = OUTPUT_DIR / task_id / "transcript.json"

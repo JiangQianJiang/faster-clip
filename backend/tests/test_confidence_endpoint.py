@@ -105,8 +105,8 @@ class TestConfidenceGetEndpoint:
 
 
 class TestConfidencePatchEndpoint:
-    def test_patch_accepts_confidence_and_saves_as_null(self):
-        """Authenticated PATCH with confidence values persists them as null."""
+    def test_patch_nullifies_null_confidence_and_preserves_valid_confidence(self):
+        """PATCH: null/absent confidence → null; non-null confidence preserved."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
             db_path = tmp.name
         try:
@@ -122,14 +122,14 @@ class TestConfidencePatchEndpoint:
                 {
                     "start_time_s": 1.0,
                     "end_time_s": 3.0,
-                    "text": "edited",
-                    "confidence": 0.99,
+                    "text": "edited by frontend",
+                    "confidence": None,  # edited → nullified by client
                 },
                 {
                     "start_time_s": 5.0,
                     "end_time_s": 8.0,
-                    "text": "added",
-                    "confidence": 0.55,
+                    "text": "untouched",
+                    "confidence": 0.72,  # preserved by client, should stay
                 },
             ]
 
@@ -148,15 +148,14 @@ class TestConfidencePatchEndpoint:
             body = response.json()
             assert body["segment_count"] == 2
 
-            # Verify saved transcript has confidence nullified.
             transcript_path = Path(tmp_output) / T1 / "transcript.json"
             with open(transcript_path) as f:
                 saved = json.load(f)
             assert len(saved) == 2
-            for seg in saved:
-                assert seg.get("confidence") is None, (
-                    f"Expected confidence null, got {seg.get('confidence')}"
-                )
+            # Edited segment: confidence nullified.
+            assert saved[0]["confidence"] is None
+            # Untouched segment: confidence preserved.
+            assert saved[1]["confidence"] == 0.72
         finally:
             os.unlink(db_path)
             import shutil
@@ -164,7 +163,7 @@ class TestConfidencePatchEndpoint:
             shutil.rmtree(tmp_output, ignore_errors=True)
 
     def test_get_after_patch_returns_null_confidence(self):
-        """After PATCH nullifies confidence, GET returns null from saved transcript."""
+        """After PATCH with null confidence, GET returns null from saved transcript."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
             db_path = tmp.name
         try:
@@ -176,13 +175,13 @@ class TestConfidencePatchEndpoint:
             _setup_transcript(T2, original, tmp_output)
             _insert_task_full(db_path, T2)
 
-            # Submit with confidence value — backend nullifies it.
+            # Submit with null confidence (client edited it).
             new_segments = [
                 {
                     "start_time_s": 1.0,
                     "end_time_s": 5.0,
                     "text": "edited text",
-                    "confidence": 0.88,
+                    "confidence": None,
                 },
             ]
 

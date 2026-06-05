@@ -357,11 +357,17 @@ export function resizeSegmentClipWindow(
 }
 
 export function toTranscriptPayload(segments: EditableSubtitleSegment[]) {
-  return sortSegments(segments).map(({ start_time_s, end_time_s, text }) => ({
-    start_time_s,
-    end_time_s,
-    text,
-  }));
+  return sortSegments(segments).map(({ id: _id, start_time_s, end_time_s, text, confidence }) => {
+    const entry: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null } = {
+      start_time_s,
+      end_time_s,
+      text,
+    };
+    if (confidence !== undefined) {
+      entry.confidence = confidence;
+    }
+    return entry;
+  });
 }
 
 function applyEdit(segments: EditableSubtitleSegment[], action: EditingAction): EditableSubtitleSegment[] {

@@ -178,12 +178,6 @@ def run(
                 "extracting_subtitles", "无法获取字幕：无内嵌字幕且未配置 ASR API key"
             )
 
-        # Apply line-breaker to enforce readable line lengths.
-        from app.services.line_breaker import break_lines
-
-        for seg in segments:
-            seg["text"] = break_lines(seg["text"])
-
         save_transcript(segments, output_dir)
         update_task_status(task_id, "processing", subtitle_segment_count=len(segments))
 
