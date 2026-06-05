@@ -334,3 +334,46 @@ class TestNormalizeTranscript:
         ]
         result = normalize_transcript(segs)
         assert result is not segs
+
+
+# ── confidence preservation (AC-8) ────────────────────────────────────────
+
+
+class TestConfidencePreservation:
+    def test_normalize_transcript_preserves_confidence(self):
+        segs = [
+            {"start_time_s": 1.0, "end_time_s": 5.0, "text": "hello", "confidence": 0.72},
+        ]
+        result = normalize_transcript(segs)
+        assert result[0]["confidence"] == 0.72
+
+    def test_validate_transcript_preserves_confidence(self):
+        segs = [
+            {"start_time_s": 1.0, "end_time_s": 5.0, "text": "hello", "confidence": 0.85},
+        ]
+        valid, _ = validate_transcript(segs)
+        assert len(valid) == 1
+        assert valid[0]["confidence"] == 0.85
+
+    def test_validate_transcript_strict_in_place_preserves_confidence(self):
+        segs = [
+            {"start_time_s": 1.0, "end_time_s": 5.0, "text": "hello", "confidence": 0.99},
+        ]
+        err = validate_transcript_strict(segs)
+        assert err is None
+        assert segs[0]["confidence"] == 0.99
+
+    def test_confidence_absent_is_not_injected(self):
+        """Normalization does not add confidence when it is missing."""
+        segs = [
+            {"start_time_s": 1.0, "end_time_s": 5.0, "text": "plain"},
+        ]
+        result = normalize_transcript(segs)
+        assert "confidence" not in result[0]
+
+    def test_confidence_null_is_preserved(self):
+        segs = [
+            {"start_time_s": 1.0, "end_time_s": 5.0, "text": "qwen", "confidence": None},
+        ]
+        result = normalize_transcript(segs)
+        assert result[0]["confidence"] is None

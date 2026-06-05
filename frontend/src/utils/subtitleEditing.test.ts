@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addSegmentAtPlayhead,
+  addSegmentAtPlayheadClipWindow,
   binarySearch,
   buildMergeRowList,
   deleteSegment,
@@ -405,5 +406,109 @@ describe("binarySearch", () => {
       expect(idx).toBeGreaterThanOrEqual(-1);
       expect(idx).toBeLessThan(segments.length);
     }
+  });
+});
+
+// ── confidence nullification on edit (AC-13) ─────────────────────────────
+
+const segsWithConfidence: EditableSubtitleSegment[] = [
+  { id: "a", start_time_s: 0, end_time_s: 2, text: "first", confidence: 0.85 },
+  { id: "b", start_time_s: 4, end_time_s: 7, text: "second", confidence: 0.5 },
+];
+
+describe("confidence nullification on edit", () => {
+  it("SET_TEXT clears confidence on edited segment only", () => {
+    const state = initialEditingState(segsWithConfidence);
+    const next = editingReducer(state, updateSegmentText("a", "changed"));
+    expect(next.present[0].confidence).toBeNull();
+    expect(next.present[1].confidence).toBe(0.5); // unchanged
+  });
+
+  it("SPLIT_SEGMENT clears confidence on both split outputs", () => {
+    const split = splitSegmentAtPlayhead(segsWithConfidence, "b", 5.5, 25);
+    expect(split).not.toBeNull();
+    const splitB = split!.filter((s) => s.text === "second");
+    expect(splitB).toHaveLength(2);
+    for (const s of splitB) {
+      expect(s.confidence).toBeNull();
+    }
+    // Unaffected segment preserves confidence.
+    expect(split![0].confidence).toBe(0.85);
+  });
+
+  it("MOVE_SEGMENT clears confidence on moved segment", () => {
+    const moved = moveSegment(segsWithConfidence, "a", 2, 25, 60);
+    expect(moved.find((s) => s.id === "a")!.confidence).toBeNull();
+    expect(moved.find((s) => s.id === "b")!.confidence).toBe(0.5);
+  });
+
+  it("RESIZE_SEGMENT clears confidence on resized segment", () => {
+    const resized = resizeSegment(segsWithConfidence, "b", "end", 8, 25, 60);
+    expect(resized.find((s) => s.id === "b")!.confidence).toBeNull();
+    expect(resized.find((s) => s.id === "a")!.confidence).toBe(0.85);
+  });
+
+  it("ADD_SEGMENT creates segment with confidence null", () => {
+    const added = addSegmentAtPlayhead(segsWithConfidence, 2.5, 25);
+    expect(added).toHaveLength(3);
+    const newSeg = added.find((s) => s.id !== "a" && s.id !== "b")!;
+    expect(newSeg.confidence).toBeNull();
+    // Existing segments preserve confidence.
+    expect(added.find((s) => s.id === "a")!.confidence).toBe(0.85);
+    expect(added.find((s) => s.id === "b")!.confidence).toBe(0.5);
+  });
+
+  it("ADD_SEGMENT_CLIP_WINDOW creates segment with confidence null", () => {
+    const clipSegs = [
+      { id: "c", start_time_s: 10, end_time_s: 13, text: "clip", confidence: 0.72 },
+    ];
+    const added = addSegmentAtPlayheadClipWindow(clipSegs, 12, 25, 10, 15);
+    expect(added).toHaveLength(2);
+    const newSeg = added.find((s) => s.id !== "c")!;
+    expect(newSeg.confidence).toBeNull();
+    expect(added.find((s) => s.id === "c")!.confidence).toBe(0.72);
+  });
+
+  it("MOVE_SEGMENT_CLIP_WINDOW clears confidence on moved segment", () => {
+    const clipSegs = [
+      { id: "c", start_time_s: 10, end_time_s: 13, text: "a", confidence: 0.7 },
+      { id: "d", start_time_s: 14, end_time_s: 17, text: "b", confidence: 0.3 },
+    ];
+    const moved = moveSegmentClipWindow(clipSegs, "c", 1, 25, 10, 20);
+    expect(moved.find((s) => s.id === "c")!.confidence).toBeNull();
+    expect(moved.find((s) => s.id === "d")!.confidence).toBe(0.3);
+  });
+
+  it("RESIZE_SEGMENT_CLIP_WINDOW clears confidence on resized segment", () => {
+    const clipSegs = [
+      { id: "c", start_time_s: 10, end_time_s: 13, text: "a", confidence: 0.8 },
+      { id: "d", start_time_s: 14, end_time_s: 17, text: "b", confidence: 0.2 },
+    ];
+    const resized = resizeSegmentClipWindow(clipSegs, "d", "start", 14.5, 25, 10, 20);
+    expect(resized.find((s) => s.id === "d")!.confidence).toBeNull();
+    expect(resized.find((s) => s.id === "c")!.confidence).toBe(0.8);
+  });
+
+  it("DELETE_SEGMENT preserves confidence on remaining segments", () => {
+    const state = initialEditingState(segsWithConfidence);
+    const next = editingReducer(state, deleteSegment("a"));
+    expect(next.present).toHaveLength(1);
+    expect(next.present[0].confidence).toBe(0.5);
+  });
+
+  it("editingReducer preserves confidence on REPLACE (server load)", () => {
+    const state = initialEditingState(segsWithConfidence);
+    const incoming: EditableSubtitleSegment[] = [
+      { id: "x", start_time_s: 0, end_time_s: 3, text: "new", confidence: 0.62 },
+    ];
+    const next = editingReducer(state, { type: "REPLACE", segments: incoming });
+    expect(next.present[0].confidence).toBe(0.62);
+  });
+
+  it("editingReducer preserves confidence on RESET", () => {
+    const state = initialEditingState([]);
+    const next = editingReducer(state, { type: "RESET", segments: segsWithConfidence });
+    expect(next.present[0].confidence).toBe(0.85);
+    expect(next.present[1].confidence).toBe(0.5);
   });
 });

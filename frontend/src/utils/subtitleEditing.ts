@@ -141,7 +141,7 @@ export function addSegmentAtPlayhead(
   const end = clamp(snapToFrame(start + 3, fps), start, videoDuration);
   return sortSegments([
     ...cloneSegments(segments),
-    { id: createSegmentId(), start_time_s: start, end_time_s: end, text: "" },
+    { id: createSegmentId(), start_time_s: start, end_time_s: end, text: "", confidence: null },
   ]);
 }
 
@@ -159,7 +159,7 @@ export function addSegmentAtPlayheadClipWindow(
   if (end <= start) return cloneSegments(segments);
   return sortSegments([
     ...cloneSegments(segments),
-    { id: createSegmentId(), start_time_s: start, end_time_s: end, text: "" },
+    { id: createSegmentId(), start_time_s: start, end_time_s: end, text: "", confidence: null },
   ]);
 }
 

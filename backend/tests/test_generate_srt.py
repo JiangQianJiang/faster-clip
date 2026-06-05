@@ -137,3 +137,112 @@ class TestGenerateClipSubtitles:
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = generate_clip_subtitles(segments, 0, 10, "/nonexistent/dir", 0)
             assert paths == []  # best-effort: failed, no paths returned
+
+
+# ── confidence preservation (AC-8) ────────────────────────────────────────
+
+
+class TestGetClipSubtitleSegmentsConfidence:
+    def test_confidence_preserved_in_filtered_segments(self):
+        segments = [
+            {"start_time_s": 50, "end_time_s": 55, "text": "with confidence", "confidence": 0.72},
+        ]
+        result = get_clip_subtitle_segments(segments, window_start=50, window_end=60)
+        assert len(result) == 1
+        assert result[0]["confidence"] == 0.72
+
+    def test_confidence_preserved_across_boundary_crossing(self):
+        segments = [
+            {"start_time_s": 45, "end_time_s": 55, "text": "boundary", "confidence": 0.88},
+        ]
+        result = get_clip_subtitle_segments(segments, window_start=50, window_end=60)
+        assert len(result) == 1
+        assert result[0]["confidence"] == 0.88
+
+    def test_confidence_absent_not_injected(self):
+        segments = [
+            {"start_time_s": 0, "end_time_s": 5, "text": "plain"},
+        ]
+        result = get_clip_subtitle_segments(segments, window_start=0, window_end=10)
+        assert len(result) == 1
+        assert "confidence" not in result[0]
+
+    def test_confidence_null_preserved(self):
+        segments = [
+            {"start_time_s": 0, "end_time_s": 5, "text": "null conf", "confidence": None},
+        ]
+        result = get_clip_subtitle_segments(segments, window_start=0, window_end=10)
+        assert len(result) == 1
+        assert result[0]["confidence"] is None
+
+
+# ── export line-break behaviour (AC-12) ────────────────────────────────────
+
+
+class TestExportLineBreak:
+    """generate_clip_subtitles applies break_lines() to exported subtitles."""
+
+    def test_long_text_gets_line_break_in_srt(self):
+        """A long subtitle segment is broken with \n in SRT export."""
+        segments = [
+            {"start_time_s": 0, "end_time_s": 5, "text": "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"},
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
+            srt_path = os.path.join(tmpdir, "clip_000.srt")
+            assert os.path.isfile(srt_path)
+            with open(srt_path) as f:
+                content = f.read()
+            assert "\n" in content
+
+    def test_long_text_gets_line_break_in_vtt(self):
+        segments = [
+            {"start_time_s": 0, "end_time_s": 5, "text": "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"},
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
+            vtt_path = os.path.join(tmpdir, "clip_000.vtt")
+            assert os.path.isfile(vtt_path)
+            with open(vtt_path) as f:
+                content = f.read()
+            assert "\n" in content
+
+    def test_ass_export_uses_backslash_N(self):
+        r"""ASS export converts \n to \\N for line breaks."""
+        segments = [
+            {"start_time_s": 0, "end_time_s": 5, "text": "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"},
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
+            ass_path = os.path.join(tmpdir, "clip_000.ass")
+            assert os.path.isfile(ass_path)
+            with open(ass_path) as f:
+                content = f.read()
+            assert "\\N" in content
+
+    def test_pre_broken_text_not_double_broken(self):
+        """Pre-existing newline in text is not doubled by the idempotent breaker."""
+        segments = [
+            {"start_time_s": 0, "end_time_s": 5, "text": "第一行\n第二行"},
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
+            srt_path = os.path.join(tmpdir, "clip_000.srt")
+            with open(srt_path) as f:
+                content = f.read()
+            # The original text (with single newline) should appear verbatim.
+            assert "第一行\n第二行" in content
+            # "第一行\n\n第二行" (double newline) would mean double-breaking.
+            assert "第一行\n\n第二行" not in content
+
+    def test_short_text_unchanged_in_export(self):
+        """Short text under max_chars is not broken."""
+        segments = [
+            {"start_time_s": 0, "end_time_s": 5, "text": "短字幕"},
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
+            srt_path = os.path.join(tmpdir, "clip_000.srt")
+            with open(srt_path) as f:
+                content = f.read()
+            assert "短字幕" in content

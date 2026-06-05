@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.services.asr import ASRError, AuthError, EmptyTranscript, transcribe
+from app.services.asr import ASRError, AuthError, EmptyTranscript, _parse_qwen_results, transcribe
 
 
 def _make_seg_obj(start, end, text, avg_logprob=None):
@@ -443,3 +443,42 @@ def test_confidence_dict_segment_with_avg_logprob():
     assert result[0]["confidence"] is not None
     # exp(-0.3) ≈ 0.74
     assert 0.7 < result[0]["confidence"] < 0.8
+
+
+# ── Qwen null confidence (AC-7) ───────────────────────────────────────────
+
+
+def test_qwen_parse_results_confidence_null():
+    """Qwen FileTrans response produces segments with confidence: None."""
+    data = {
+        "transcripts": [
+            {
+                "sentences": [
+                    {"begin_time": 1000, "end_time": 3000, "text": "大家好"},
+                    {"begin_time": 4000, "end_time": 7000, "text": "欢迎"},
+                ]
+            }
+        ]
+    }
+    result = _parse_qwen_results(data)
+    assert len(result) == 2
+    for seg in result:
+        assert seg["confidence"] is None
+
+
+def test_qwen_parse_results_empty_text_skipped():
+    """Qwen sentences with empty/whitespace text are filtered."""
+    data = {
+        "transcripts": [
+            {
+                "sentences": [
+                    {"begin_time": 1000, "end_time": 3000, "text": "   "},
+                    {"begin_time": 4000, "end_time": 7000, "text": "valid"},
+                ]
+            }
+        ]
+    }
+    result = _parse_qwen_results(data)
+    assert len(result) == 1
+    assert result[0]["text"] == "valid"
+    assert result[0]["confidence"] is None
