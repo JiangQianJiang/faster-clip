@@ -1,0 +1,31 @@
+# Development overlay — adds source mounts, hot reload, and dev-appropriate settings.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  backend:
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+    environment:
+      - DEBUG=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  celery-worker:
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+
+  celery-beat:
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+
+  frontend:
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules

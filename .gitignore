@@ -1,0 +1,40 @@
+.DS_Store
+CLAUDE.md
+.humanize/
+.superpowers/
+.worktrees/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+.npm-cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment (contains secrets)
+.env
+.env.*
+!.env.example
+
+# Data (runtime artifacts, not source)
+data/videos/
+data/output/
+data/*.db
+data/*.sqlite
+backend/data/
+*.db-shm
+*.db-wal
+celerybeat-schedule
+celerybeat-schedule.db
+frontend/test-results/
+frontend/data/
