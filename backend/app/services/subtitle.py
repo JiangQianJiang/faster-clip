@@ -406,6 +406,24 @@ def get_clip_subtitle_segments(
         }
         if "confidence" in seg:
             entry["confidence"] = seg["confidence"]
+        if "words" in seg and seg["words"]:
+            entry["words"] = [
+                {
+                    "text": w["text"],
+                    "start_time_s": round(
+                        max(w["start_time_s"] - window_start, 0.0), 3
+                    ),
+                    "end_time_s": round(
+                        min(w["end_time_s"] - window_start, window_dur), 3
+                    ),
+                }
+                for w in seg["words"]
+                if w["end_time_s"] > window_start
+                and w["start_time_s"] < window_end
+                and min(w["end_time_s"], window_end)
+                - max(w["start_time_s"], window_start)
+                > 0
+            ]
         result.append(entry)
     return result
 
@@ -426,10 +444,13 @@ def generate_clip_subtitles(
 
     filtered = get_clip_subtitle_segments(segments, window_start, window_end)
 
-    # Apply line-breaker as a safety net for transcripts that predate the
-    # feature.  Idempotent — already-broken text is returned unchanged.
-    from app.services.line_breaker import break_lines
+    # Split long segments at word boundaries using word-level timestamps.
+    # Falls back to character-based splitting when word data is unavailable.
+    from app.services.line_breaker import break_lines, split_segments
 
+    filtered = split_segments(filtered)
+    # Apply line-breaker as a safety net for any remaining long text.
+    # Idempotent — already-broken text is returned unchanged.
     for seg in filtered:
         seg["text"] = break_lines(seg["text"])
     fmt_configs = [

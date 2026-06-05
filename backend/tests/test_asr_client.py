@@ -482,3 +482,125 @@ def test_qwen_parse_results_empty_text_skipped():
     assert len(result) == 1
     assert result[0]["text"] == "valid"
     assert result[0]["confidence"] is None
+
+
+# ── Qwen word-level timestamps ───────────────────────────────────────────
+
+
+def test_qwen_parse_results_with_words():
+    """Qwen response with words array → each segment gets word-level timestamps."""
+    data = {
+        "transcripts": [
+            {
+                "sentences": [
+                    {
+                        "begin_time": 1000,
+                        "end_time": 3000,
+                        "text": "大家好",
+                        "words": [
+                            {"text": "大", "begin_time": 1000, "end_time": 1500},
+                            {"text": "家", "begin_time": 1500, "end_time": 2200},
+                            {"text": "好", "begin_time": 2200, "end_time": 3000},
+                        ],
+                    }
+                ]
+            }
+        ]
+    }
+    result = _parse_qwen_results(data)
+    assert len(result) == 1
+    seg = result[0]
+    assert seg["text"] == "大家好"
+    assert seg["start_time_s"] == 1.0
+    assert seg["end_time_s"] == 3.0
+    assert seg["words"] is not None
+    assert len(seg["words"]) == 3
+    assert seg["words"][0] == {
+        "text": "大",
+        "start_time_s": 1.0,
+        "end_time_s": 1.5,
+    }
+    assert seg["words"][1] == {
+        "text": "家",
+        "start_time_s": 1.5,
+        "end_time_s": 2.2,
+    }
+    assert seg["words"][2] == {
+        "text": "好",
+        "start_time_s": 2.2,
+        "end_time_s": 3.0,
+    }
+
+
+def test_qwen_parse_results_words_none_when_missing():
+    """When the Qwen response omits the words field, words is None."""
+    data = {
+        "transcripts": [
+            {
+                "sentences": [
+                    {"begin_time": 1000, "end_time": 3000, "text": "无词级数据"}
+                ]
+            }
+        ]
+    }
+    result = _parse_qwen_results(data)
+    assert len(result) == 1
+    assert result[0]["words"] is None
+
+
+def test_qwen_parse_results_words_empty_list():
+    """When words is an empty list, words stays None."""
+    data = {
+        "transcripts": [
+            {
+                "sentences": [
+                    {
+                        "begin_time": 1000,
+                        "end_time": 3000,
+                        "text": "空列表",
+                        "words": [],
+                    }
+                ]
+            }
+        ]
+    }
+    result = _parse_qwen_results(data)
+    assert len(result) == 1
+    assert result[0]["words"] is None
+
+
+def test_qwen_parse_results_multiple_sentences_words():
+    """Multiple sentences each with their own word-level data."""
+    data = {
+        "transcripts": [
+            {
+                "sentences": [
+                    {
+                        "begin_time": 0,
+                        "end_time": 2000,
+                        "text": "你好",
+                        "words": [
+                            {"text": "你", "begin_time": 0, "end_time": 1000},
+                            {"text": "好", "begin_time": 1000, "end_time": 2000},
+                        ],
+                    },
+                    {
+                        "begin_time": 3000,
+                        "end_time": 4500,
+                        "text": "世界",
+                        "words": [
+                            {"text": "世", "begin_time": 3000, "end_time": 3700},
+                            {"text": "界", "begin_time": 3700, "end_time": 4500},
+                        ],
+                    },
+                ]
+            }
+        ]
+    }
+    result = _parse_qwen_results(data)
+    assert len(result) == 2
+    assert result[0]["text"] == "你好"
+    assert len(result[0]["words"]) == 2
+    assert result[1]["text"] == "世界"
+    assert len(result[1]["words"]) == 2
+    assert result[1]["words"][0]["start_time_s"] == 3.0

@@ -48,13 +48,14 @@ def test_single_filler_not_compressed():
 
 def test_break_at_punctuation():
     """Long text breaks at the last punctuation within max_chars_per_line."""
-    result = break_lines("大家好欢迎来到今天的直播间，今天我们要聊一个非常重要的话题")
+    # 12 chars: "大家好，欢迎来到" fits comma at position 5
+    result = break_lines("大家好，欢迎来到今天的直播间，今天我们要聊一个非常重要的话题")
     assert "\n" in result
     first_line, second_line = result.split("\n", 1)
     # First line ends with the punctuation.
     assert first_line.endswith("，")
-    assert len(first_line) <= 14
-    assert len(second_line) <= 14
+    assert len(first_line) <= 12
+    assert len(second_line) <= 12
 
 
 def test_text_within_limit_unchanged():
@@ -70,7 +71,7 @@ def test_no_punctuation_hard_break():
     result = break_lines(text)
     assert "\n" in result
     first, second = result.split("\n", 1)
-    assert len(first) <= 14
+    assert len(first) <= 12
     # Should not break mid-character (Chinese chars are safe to split).
     assert len(first) > 0
     assert len(second) > 0
@@ -118,8 +119,8 @@ def test_idempotent_double_application():
 
 def test_does_not_split_english_word():
     """Break point inside an English word is avoided — break moves before it."""
-    # "OpenAI" spans characters that may cross max_chars boundary.
-    text = "我们看一下OpenAI的最新模型在benchmark上的表现"
+    # Shorter text so "benchmark" fits in the second line with 12-char budget.
+    text = "看看OpenAI模型在benchmark的表现"
     result = break_lines(text)
     # The result should not have a line break inside "OpenAI" or "benchmark".
     if "\n" in result:
@@ -170,7 +171,7 @@ def test_overflow_truncated_with_ellipsis():
     if "\n" in result:
         _, second = result.split("\n", 1)
         # Second line stays within max_chars including the ellipsis.
-        assert len(second) <= 14
+        assert len(second) <= 12
         if "…" in second:
             assert second.endswith("…")
 
@@ -210,5 +211,144 @@ def test_filler_compression_with_break():
     # Without compression this would be long; after compression it fits.
     text = "那个那个然后然后就是就是大家好"
     result = break_lines(text)
-    # After compression: "那个然后就是大家好" (fits in 14 chars).
+    # After compression: "那个然后就是大家好" (fits in 12 chars).
     assert result == "那个然后就是大家好"
+
+
+# ---------------------------------------------------------------------------
+# Word-level segment splitting (split_segments)
+# ---------------------------------------------------------------------------
+
+from app.services.line_breaker import split_segments
+
+
+def _make_seg(start, end, text, words=None, confidence=None):
+    seg: dict = {"start_time_s": start, "end_time_s": end, "text": text}
+    if words is not None:
+        seg["words"] = words
+    if confidence is not None:
+        seg["confidence"] = confidence
+    return seg
+
+
+def _make_word(text, start, end):
+    return {"text": text, "start_time_s": start, "end_time_s": end}
+
+
+class TestSplitSegments:
+    def test_short_segment_unchanged(self):
+        """Segment within max_chars is returned as-is."""
+        seg = _make_seg(0.0, 2.0, "短字幕")
+        result = split_segments([seg])
+        assert len(result) == 1
+        assert result[0]["text"] == "短字幕"
+
+    def test_no_word_data_fallback(self):
+        """Segment without word data is split by character count."""
+        seg = _make_seg(0.0, 3.0, "这是一条很长的中文字幕需要拆分")
+        result = split_segments([seg])
+        assert len(result) >= 2
+        # Each sub-segment is ≤ 12 chars.
+        for s in result:
+            assert len(s["text"]) <= 12
+        # Timestamps are interpolated.
+        for s in result:
+            assert "start_time_s" in s
+            assert "end_time_s" in s
+            assert s["words"] is None
+
+    def test_word_based_split(self):
+        """Segment with word data splits at word boundaries."""
+        words = [
+            _make_word("今天", 0.0, 0.5),
+            _make_word("我们", 0.5, 1.0),
+            _make_word("来", 1.0, 1.2),
+            _make_word("聊聊", 1.2, 1.6),
+            _make_word("人工", 1.6, 1.9),
+            _make_word("智能", 1.9, 2.2),
+            _make_word("的", 2.2, 2.3),
+            _make_word("发展", 2.3, 2.6),
+        ]
+        seg = _make_seg(0.0, 2.6, "今天我们来聊聊人工智能的发展", words=words)
+        result = split_segments([seg])
+        # 13 chars total → should split into 2 sub-segments.
+        assert len(result) >= 2
+        for s in result:
+            assert len(s["text"]) <= 12
+            assert s["words"] is not None
+            # Word timestamps match the sub-segment boundaries.
+            assert s["start_time_s"] == s["words"][0]["start_time_s"]
+            assert s["end_time_s"] == s["words"][-1]["end_time_s"]
+        # Joined text equals original (no characters lost).
+        joined = "".join(s["text"] for s in result)
+        assert joined == "今天我们来聊聊人工智能的发展"
+
+    def test_split_at_punctuation_preferred(self):
+        """When words contain punctuation, split prefers to break after it."""
+        words = [
+            _make_word("大家", 0.0, 0.3),
+            _make_word("好", 0.3, 0.5),
+            _make_word("，", 0.5, 0.6),
+            _make_word("欢迎", 0.6, 0.9),
+            _make_word("来到", 0.9, 1.2),
+            _make_word("直播", 1.2, 1.5),
+            _make_word("间", 1.5, 1.7),
+            _make_word("各位", 1.7, 2.0),
+        ]
+        seg = _make_seg(0.0, 2.0, "大家好，欢迎来到直播间各位", words=words)
+        result = split_segments([seg])
+        # First sub-segment should end with the punctuation.
+        assert result[0]["text"].endswith("，")
+
+    def test_multiple_segments_mixed(self):
+        """Mixed segments: some with words, some without."""
+        words = [
+            _make_word("你好", 0.0, 0.5),
+            _make_word("世界", 0.5, 1.0),
+            _make_word("这是一条", 1.0, 1.7),
+            _make_word("很长的", 1.7, 2.2),
+            _make_word("测试", 2.2, 2.5),
+            _make_word("字幕", 2.5, 2.8),
+            _make_word("内容", 2.8, 3.2),
+        ]
+        segs = [
+            _make_seg(0.0, 1.0, "你好世界", words=words[:2]),
+            _make_seg(1.0, 3.2, "这是一条很长的测试字幕内容", words=words[2:]),
+        ]
+        result = split_segments(segs)
+        # First segment is short → unchanged.
+        # Second segment (13 chars) → split into 2+.
+        assert len(result) >= 3
+        for s in result:
+            assert len(s["text"]) <= 12
+
+    def test_confidence_preserved(self):
+        """Sub-segments inherit confidence from parent."""
+        words = [
+            _make_word("大家好欢迎来到今天的直播", 0.0, 2.0),
+            _make_word("间", 2.0, 2.2),
+            _make_word("各位", 2.2, 2.5),
+        ]
+        seg = _make_seg(0.0, 2.5, "大家好欢迎来到今天的直播间各位", words=words, confidence=0.95)
+        result = split_segments([seg])
+        for s in result:
+            assert s.get("confidence") == 0.95
+
+    def test_empty_segments_filtered(self):
+        """Segments with empty text are dropped."""
+        seg = _make_seg(0.0, 1.0, "   ")
+        result = split_segments([seg])
+        assert len(result) == 0
+
+    def test_fillers_compressed_in_split(self):
+        """Filler compression runs before checking length."""
+        words = [
+            _make_word("那个", 0.0, 0.3),
+            _make_word("那个", 0.3, 0.6),
+            _make_word("大家好", 0.6, 1.2),
+        ]
+        seg = _make_seg(0.0, 1.2, "那个那个大家好", words=words)
+        result = split_segments([seg])
+        # After filler compression "那个大家好" (5 chars) — fits in one segment.
+        assert len(result) == 1
+        assert result[0]["text"] == "那个大家好"

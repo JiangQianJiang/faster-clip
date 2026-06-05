@@ -16,6 +16,7 @@ _logger = TaskContextAdapter(logging.getLogger("app.chat"), {})
 
 CHECKPOINT_TOOLS = {
     "extract_embedded_subtitles",
+    "kernel_run_asr",
     "run_asr",
     "analyze_highlights",
     "export_clips",
@@ -29,7 +30,7 @@ CHECKPOINT_TOOLS = {
 # regardless of the active checkpoint mode.
 FATAL_TOOLS = {
     "extract_embedded_subtitles",
-    "run_asr",
+    "kernel_run_asr",
     "analyze_highlights",
     "export_clips",
 }

@@ -370,7 +370,12 @@ def _transcribe_qwen(
 
 
 def _parse_qwen_results(data: dict) -> list[dict]:
-    """Parse Qwen FileTrans JSON result into standard segment format."""
+    """Parse Qwen FileTrans JSON result into standard segment format.
+
+    Extracts both sentence-level segments and word-level timestamps
+    (enable_words=True must be set in the transcription request).
+    Word timestamps are converted from milliseconds to seconds.
+    """
     segments = []
 
     for transcript in data.get("transcripts", []):
@@ -378,12 +383,24 @@ def _parse_qwen_results(data: dict) -> list[dict]:
         for s in sentences:
             text = s.get("text", "").strip()
             if text:
+                words = None
+                raw_words = s.get("words") or []
+                if raw_words:
+                    words = [
+                        {
+                            "text": w.get("text", ""),
+                            "start_time_s": round(w.get("begin_time", 0) / 1000.0, 3),
+                            "end_time_s": round(w.get("end_time", 0) / 1000.0, 3),
+                        }
+                        for w in raw_words
+                    ]
                 segments.append(
                     {
                         "start_time_s": round(s.get("begin_time", 0) / 1000.0, 3),
                         "end_time_s": round(s.get("end_time", 0) / 1000.0, 3),
                         "text": text,
                         "confidence": None,
+                        "words": words,
                     }
                 )
 

@@ -181,12 +181,11 @@ class TestGetClipSubtitleSegmentsConfidence:
 
 
 class TestExportLineBreak:
-    """generate_clip_subtitles applies break_lines() to exported subtitles."""
+    """generate_clip_subtitles applies split_segments() + break_lines() to exported subtitles."""
 
-    def test_long_text_gets_line_break_in_srt(self):
-        """A long subtitle segment has embedded line-break in the SRT cue body."""
+    def test_long_text_split_into_multiple_cues_in_srt(self):
+        """Long text without word data is split into multiple cues (char fallback)."""
         long_text = "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"
-        broken = break_lines(long_text)
         segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
@@ -194,14 +193,15 @@ class TestExportLineBreak:
             assert os.path.isfile(srt_path)
             with open(srt_path) as f:
                 content = f.read()
-            # The broken subtitle body (with embedded newline) appears in the cue.
-            assert broken in content
-            # The original single-line body does not.
-            assert long_text not in content
+            # The original text is split into multiple SRT cues (3 cues).
+            assert content.count("\n\n") >= 2
+            # All text is preserved (joined from all cue bodies).
+            cue_bodies = _extract_srt_bodies(content)
+            joined = "".join(cue_bodies)
+            assert joined == long_text.replace("\n", "")
 
-    def test_long_text_gets_line_break_in_vtt(self):
+    def test_long_text_split_into_multiple_cues_in_vtt(self):
         long_text = "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"
-        broken = break_lines(long_text)
         segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
@@ -209,14 +209,14 @@ class TestExportLineBreak:
             assert os.path.isfile(vtt_path)
             with open(vtt_path) as f:
                 content = f.read()
-            assert broken in content
-            assert long_text not in content
+            # All text is preserved across cues.
+            cue_bodies = _extract_vtt_bodies(content)
+            joined = "".join(cue_bodies)
+            assert joined == long_text.replace("\n", "")
 
-    def test_ass_export_uses_backslash_N(self):
-        r"""ASS export converts \n to \\N in the Dialogue line."""
+    def test_ass_export_splits_into_multiple_dialogues(self):
+        r"""Long text without word data → multiple Dialogue lines in ASS."""
         long_text = "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"
-        broken = break_lines(long_text)
-        broken_ass = broken.replace("\n", "\\N")
         segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
@@ -224,8 +224,8 @@ class TestExportLineBreak:
             assert os.path.isfile(ass_path)
             with open(ass_path) as f:
                 content = f.read()
-            assert broken_ass in content
-            assert long_text not in content
+            # Multiple Dialogue lines generated.
+            assert content.count("Dialogue:") >= 3
 
     def test_pre_broken_text_not_double_broken(self):
         """Pre-existing newline in text is not doubled by the idempotent breaker."""
@@ -253,3 +253,36 @@ class TestExportLineBreak:
             with open(srt_path) as f:
                 content = f.read()
             assert "短字幕" in content
+
+
+# ── helpers for extracting cue bodies from subtitle formats ──────────────
+
+import re as _re
+
+
+def _extract_srt_bodies(content: str) -> list[str]:
+    """Extract text bodies from SRT content, in order."""
+    bodies: list[str] = []
+    for block in content.strip().split("\n\n"):
+        lines = block.split("\n")
+        # SRT block: index, timestamp, body...
+        if len(lines) >= 3:
+            bodies.append(lines[2])
+    return bodies
+
+
+def _extract_vtt_bodies(content: str) -> list[str]:
+    """Extract text bodies from VTT content, in order."""
+    bodies: list[str] = []
+    in_cue = False
+    for line in content.split("\n"):
+        line = line.strip()
+        if "-->" in line:
+            in_cue = True
+            continue
+        if in_cue:
+            if line == "":
+                in_cue = False
+            else:
+                bodies.append(line)
+    return bodies

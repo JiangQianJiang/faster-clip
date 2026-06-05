@@ -2,11 +2,15 @@
 
 Inserts \n line breaks into subtitle text, enforcing a maximum character count
 per line, compressing filler words, and protecting English/proper-noun boundaries.
+
+Also provides word-level segment splitting: when ASR segments carry per-word
+timestamps, long segments are split into sub-segments at word or punctuation
+boundaries, each with its own start/end timestamps.
 """
 
 import re
 
-DEFAULT_MAX_CHARS_PER_LINE = 14
+DEFAULT_MAX_CHARS_PER_LINE = 12
 
 _FILLER_PAIRS: list[tuple[str, str]] = [
     ("那个那个", "那个"),
@@ -18,6 +22,10 @@ _FILLER_PAIRS: list[tuple[str, str]] = [
 
 # Set of Chinese punctuation marks treated as preferred break points.
 _PUNCTUATION = set("。，！？、；：")
+
+# Punctuation marks that are natural line-break points (wider set for
+# word-level splitting — includes commas, periods, question/exclamation marks).
+_WORD_BREAK_PUNCTUATION = set("，。！？、；：,.!?;:")
 
 
 def _compress_fillers(text: str) -> str:
@@ -110,3 +118,154 @@ def break_lines(text: str, max_chars_per_line: int = DEFAULT_MAX_CHARS_PER_LINE)
         second = second[:cut] + "…"
 
     return f"{first}\n{second}"
+
+
+# ---------------------------------------------------------------------------
+# Word-level segment splitting
+# ---------------------------------------------------------------------------
+
+
+def split_segments(
+    segments: list[dict],
+    max_chars_per_line: int = DEFAULT_MAX_CHARS_PER_LINE,
+) -> list[dict]:
+    """Split long segments into sub-segments using word-level timestamps.
+
+    When a segment carries a ``words`` array (from Qwen ASR with
+    ``enable_words=True``), it is split at word boundaries so each resulting
+    sub-segment is at most *max_chars_per_line* characters.  Punctuation
+    marks are preferred as split points.
+
+    Segments without word data are split by character count with
+    proportionally interpolated timestamps as a fallback.
+
+    Returns a new list of segments.  Segments that are already within the
+    limit are returned unchanged (except that their ``text`` is run through
+    filler compression).
+    """
+    result: list[dict] = []
+    for seg in segments:
+        words = seg.get("words")
+        text = seg.get("text", "")
+        if not text.strip():
+            continue
+
+        compressed = _compress_fillers(text)
+        if len(compressed) <= max_chars_per_line:
+            # Short enough — keep as a single segment.
+            entry = dict(seg)
+            entry["text"] = compressed
+            result.append(entry)
+            continue
+
+        if words:
+            result.extend(
+                _split_segment_by_words(seg, words, compressed, max_chars_per_line)
+            )
+        else:
+            result.extend(
+                _split_segment_by_chars(seg, compressed, max_chars_per_line)
+            )
+
+    return result
+
+
+def _split_segment_by_words(
+    seg: dict,
+    words: list[dict],
+    compressed_text: str,
+    max_chars: int,
+) -> list[dict]:
+    """Split a segment into sub-segments at word/punctuation boundaries.
+
+    Accumulates words until *max_chars* would be exceeded, then emits a
+    sub-segment.  When breaking, prefers splitting after a punctuation mark
+    so the sub-segment reads more naturally.
+    """
+    sub_segments: list[dict] = []
+    batch: list[dict] = []
+    batch_chars = 0
+    last_punct_idx: int | None = None
+
+    for w in words:
+        w_text = w.get("text", "")
+        w_chars = len(w_text)
+
+        # Track whether this word is a break-friendly punctuation mark.
+        is_punct = w_chars == 1 and w_text in _WORD_BREAK_PUNCTUATION
+
+        if batch and batch_chars + w_chars > max_chars:
+            # Determine the split point: prefer punctuation, else hard break.
+            if last_punct_idx is not None and last_punct_idx >= 0:
+                # Emit up to and including the punctuation word.
+                punct_batch = batch[: last_punct_idx + 1]
+                rest = batch[last_punct_idx + 1:]
+                sub_segments.append(_make_sub_segment(punct_batch, seg))
+                batch = rest + [w]
+                batch_chars = sum(len(x["text"]) for x in batch)
+            else:
+                # No punctuation anchor — break before the current word.
+                sub_segments.append(_make_sub_segment(batch, seg))
+                batch = [w]
+                batch_chars = w_chars
+            last_punct_idx = None
+        else:
+            batch.append(w)
+            batch_chars += w_chars
+
+        if is_punct:
+            last_punct_idx = len(batch) - 1
+
+    if batch:
+        sub_segments.append(_make_sub_segment(batch, seg))
+
+    return sub_segments
+
+
+def _split_segment_by_chars(
+    seg: dict,
+    text: str,
+    max_chars: int,
+) -> list[dict]:
+    """Fallback: split a segment by character count when no word data exists.
+
+    Timestamps are interpolated proportionally from the parent segment's
+    duration.  This is a rough estimate — word-level timestamps should be
+    preferred whenever available.
+    """
+    chars = list(text)
+    duration = seg["end_time_s"] - seg["start_time_s"]
+    if duration <= 0:
+        return [seg]
+
+    sub_segments: list[dict] = []
+    for i in range(0, len(chars), max_chars):
+        chunk = chars[i: i + max_chars]
+        chunk_text = "".join(chunk)
+        ratio_start = i / len(chars)
+        ratio_end = min((i + len(chunk)) / len(chars), 1.0)
+        entry: dict = {
+            "start_time_s": round(seg["start_time_s"] + duration * ratio_start, 3),
+            "end_time_s": round(seg["start_time_s"] + duration * ratio_end, 3),
+            "text": chunk_text,
+            "words": None,
+        }
+        if "confidence" in seg:
+            entry["confidence"] = seg["confidence"]
+        sub_segments.append(entry)
+
+    return sub_segments
+
+
+def _make_sub_segment(words: list[dict], parent_seg: dict) -> dict:
+    """Build a segment dict from a list of word dicts."""
+    text = "".join(w["text"] for w in words)
+    entry: dict = {
+        "start_time_s": words[0]["start_time_s"],
+        "end_time_s": words[-1]["end_time_s"],
+        "text": text,
+        "words": words,
+    }
+    if "confidence" in parent_seg:
+        entry["confidence"] = parent_seg["confidence"]
+    return entry

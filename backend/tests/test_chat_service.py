@@ -211,6 +211,7 @@ def test_checkpoint_tools_set():
     assert "export_clips" in CHECKPOINT_TOOLS
     assert "extract_embedded_subtitles" in CHECKPOINT_TOOLS
     assert "run_asr" in CHECKPOINT_TOOLS
+    assert "kernel_run_asr" in CHECKPOINT_TOOLS
 
 
 def test_fatal_tools_independent_of_checkpoint():
@@ -220,7 +221,9 @@ def test_fatal_tools_independent_of_checkpoint():
     assert "analyze_highlights" in FATAL_TOOLS
     assert "export_clips" in FATAL_TOOLS
     assert "extract_embedded_subtitles" in FATAL_TOOLS
-    assert "run_asr" in FATAL_TOOLS
+    assert "kernel_run_asr" in FATAL_TOOLS
+    # User-facing run_asr is NOT fatal (user-initiated re-run).
+    assert "run_asr" not in FATAL_TOOLS
     # Non-fatal checkpoint tools are NOT in FATAL_TOOLS
     assert "add_clip" not in FATAL_TOOLS
     assert "refine_clips" not in FATAL_TOOLS

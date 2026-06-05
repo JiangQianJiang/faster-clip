@@ -169,8 +169,9 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
             filtered = get_clip_subtitle_segments(
                 all_segments, window_start, window_end
             )
-            from app.services.line_breaker import break_lines
+            from app.services.line_breaker import break_lines, split_segments
 
+            filtered = split_segments(filtered)
             for seg in filtered:
                 seg["text"] = break_lines(seg["text"])
             from app.services.subtitle import (

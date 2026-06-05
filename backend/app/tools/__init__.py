@@ -78,3 +78,4 @@ from app.tools.user import delete_clip as _  # noqa
 
 from app.tools.user import apply_subtitle_style as _  # noqa
 from app.tools.user import get_export_progress as _  # noqa
+from app.tools.user import run_asr as _  # noqa

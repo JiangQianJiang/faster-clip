@@ -5,7 +5,7 @@ from app.tools.base import Tool, ToolResult
 
 
 class RunASR(Tool):
-    name = "run_asr"
+    name = "kernel_run_asr"
     description = "Run automatic speech recognition on a video to extract subtitles. Use when no embedded subtitles are available."
     parameters = {
         "type": "object",
