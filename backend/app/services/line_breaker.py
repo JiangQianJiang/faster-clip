@@ -43,21 +43,20 @@ def _find_break_point(text: str, max_chars: int) -> int:
 
 
 def _is_safe_break(text: str, pos: int) -> bool:
-    """Return True if breaking at *pos* does not split an English word or number."""
+    """Return True if breaking at *pos* does not split a protected token."""
     if pos <= 0 or pos >= len(text):
         return False
     left_char = text[pos - 1]
     right_char = text[pos]
-    # Don't break inside ASCII letter sequences (English words).
+    # Don't break inside any adjacent ASCII alphanumeric pair — this
+    # protects English words ("OpenAI"), numbers ("8080"), and mixed
+    # alphanumeric tokens ("GPT4Turbo", "v2Beta").
     if (
         left_char.isascii()
-        and left_char.isalpha()
+        and left_char.isalnum()
         and right_char.isascii()
-        and right_char.isalpha()
+        and right_char.isalnum()
     ):
-        return False
-    # Don't break inside digit sequences.
-    if left_char.isdigit() and right_char.isdigit():
         return False
     return True
 

@@ -348,10 +348,12 @@ export function moveSegmentClipWindow(
       Math.max(clipStart, clipEnd - duration),
     );
     const end = roundSeconds(start + duration);
+    const timingChanged = start !== segment.start_time_s || end !== segment.end_time_s;
     return {
       ...segment,
       start_time_s: start,
       end_time_s: end,
+      ...(timingChanged ? { confidence: null } : {}),
     };
   }));
 }
@@ -370,14 +372,20 @@ export function resizeSegmentClipWindow(
     if (segment.id !== id) return { ...segment };
     const snapped = clamp(snapToFrame(time, fps), clipStart, clipEnd);
     if (edge === "start") {
+      const newStart = Math.min(snapped, roundSeconds(segment.end_time_s - minDuration));
+      const timingChanged = newStart !== segment.start_time_s;
       return {
         ...segment,
-        start_time_s: Math.min(snapped, roundSeconds(segment.end_time_s - minDuration)),
+        start_time_s: newStart,
+        ...(timingChanged ? { confidence: null } : {}),
       };
     }
+    const newEnd = Math.max(snapped, roundSeconds(segment.start_time_s + minDuration));
+    const timingChanged = newEnd !== segment.end_time_s;
     return {
       ...segment,
-      end_time_s: Math.max(snapped, roundSeconds(segment.start_time_s + minDuration)),
+      end_time_s: newEnd,
+      ...(timingChanged ? { confidence: null } : {}),
     };
   }));
 }
