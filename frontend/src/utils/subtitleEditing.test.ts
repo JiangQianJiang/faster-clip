@@ -409,7 +409,7 @@ describe("binarySearch", () => {
   });
 });
 
-// ── confidence nullification on edit (AC-13) ─────────────────────────────
+// ── confidence nullification on edit ─────────────────────────────────────
 
 const segsWithConfidence: EditableSubtitleSegment[] = [
   { id: "a", start_time_s: 0, end_time_s: 2, text: "first", confidence: 0.85 },

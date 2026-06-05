@@ -6,6 +6,7 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from app.services.line_breaker import break_lines
 from app.services.subtitle import generate_clip_subtitles, get_clip_subtitle_segments
 
 
@@ -139,7 +140,7 @@ class TestGenerateClipSubtitles:
             assert paths == []  # best-effort: failed, no paths returned
 
 
-# ── confidence preservation (AC-8) ────────────────────────────────────────
+# ── confidence preservation ──────────────────────────────────────────────
 
 
 class TestGetClipSubtitleSegmentsConfidence:
@@ -176,49 +177,55 @@ class TestGetClipSubtitleSegmentsConfidence:
         assert result[0]["confidence"] is None
 
 
-# ── export line-break behaviour (AC-12) ────────────────────────────────────
+# ── export line-break behaviour ───────────────────────────────────────────
 
 
 class TestExportLineBreak:
     """generate_clip_subtitles applies break_lines() to exported subtitles."""
 
     def test_long_text_gets_line_break_in_srt(self):
-        """A long subtitle segment is broken with \n in SRT export."""
-        segments = [
-            {"start_time_s": 0, "end_time_s": 5, "text": "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"},
-        ]
+        """A long subtitle segment has embedded line-break in the SRT cue body."""
+        long_text = "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"
+        broken = break_lines(long_text)
+        segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
             srt_path = os.path.join(tmpdir, "clip_000.srt")
             assert os.path.isfile(srt_path)
             with open(srt_path) as f:
                 content = f.read()
-            assert "\n" in content
+            # The broken subtitle body (with embedded newline) appears in the cue.
+            assert broken in content
+            # The original single-line body does not.
+            assert long_text not in content
 
     def test_long_text_gets_line_break_in_vtt(self):
-        segments = [
-            {"start_time_s": 0, "end_time_s": 5, "text": "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"},
-        ]
+        long_text = "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"
+        broken = break_lines(long_text)
+        segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
             vtt_path = os.path.join(tmpdir, "clip_000.vtt")
             assert os.path.isfile(vtt_path)
             with open(vtt_path) as f:
                 content = f.read()
-            assert "\n" in content
+            assert broken in content
+            assert long_text not in content
 
     def test_ass_export_uses_backslash_N(self):
-        r"""ASS export converts \n to \\N for line breaks."""
-        segments = [
-            {"start_time_s": 0, "end_time_s": 5, "text": "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"},
-        ]
+        r"""ASS export converts \n to \\N in the Dialogue line."""
+        long_text = "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"
+        broken = break_lines(long_text)
+        broken_ass = broken.replace("\n", "\\N")
+        segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
             ass_path = os.path.join(tmpdir, "clip_000.ass")
             assert os.path.isfile(ass_path)
             with open(ass_path) as f:
                 content = f.read()
-            assert "\\N" in content
+            assert broken_ass in content
+            assert long_text not in content
 
     def test_pre_broken_text_not_double_broken(self):
         """Pre-existing newline in text is not doubled by the idempotent breaker."""
