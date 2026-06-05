@@ -469,24 +469,43 @@ describe("confidence nullification on edit", () => {
     expect(added.find((s) => s.id === "c")!.confidence).toBe(0.72);
   });
 
-  it("MOVE_SEGMENT_CLIP_WINDOW clears confidence on moved segment", () => {
+  it("MOVE_SEGMENT_CLIP_WINDOW preserves confidence during drag", () => {
+    // Clip-window moves are incremental drag operations — confidence
+    // clearing is deferred to COMMIT_DRAG in the reducer.
     const clipSegs = [
       { id: "c", start_time_s: 10, end_time_s: 13, text: "a", confidence: 0.7 },
       { id: "d", start_time_s: 14, end_time_s: 17, text: "b", confidence: 0.3 },
     ];
     const moved = moveSegmentClipWindow(clipSegs, "c", 1, 25, 10, 20);
-    expect(moved.find((s) => s.id === "c")!.confidence).toBeNull();
+    expect(moved.find((s) => s.id === "c")!.confidence).toBe(0.7);
     expect(moved.find((s) => s.id === "d")!.confidence).toBe(0.3);
   });
 
-  it("RESIZE_SEGMENT_CLIP_WINDOW clears confidence on resized segment", () => {
+  it("RESIZE_SEGMENT_CLIP_WINDOW preserves confidence during drag", () => {
     const clipSegs = [
       { id: "c", start_time_s: 10, end_time_s: 13, text: "a", confidence: 0.8 },
       { id: "d", start_time_s: 14, end_time_s: 17, text: "b", confidence: 0.2 },
     ];
     const resized = resizeSegmentClipWindow(clipSegs, "d", "start", 14.5, 25, 10, 20);
-    expect(resized.find((s) => s.id === "d")!.confidence).toBeNull();
+    expect(resized.find((s) => s.id === "d")!.confidence).toBe(0.2);
     expect(resized.find((s) => s.id === "c")!.confidence).toBe(0.8);
+  });
+
+  it("COMMIT_DRAG clears confidence on segments whose timing changed", () => {
+    const snapshot: EditableSubtitleSegment[] = [
+      { id: "a", start_time_s: 10, end_time_s: 13, text: "moved", confidence: 0.7 },
+      { id: "b", start_time_s: 14, end_time_s: 17, text: "still", confidence: 0.3 },
+    ];
+    const present: EditableSubtitleSegment[] = [
+      { id: "a", start_time_s: 11, end_time_s: 14, text: "moved", confidence: 0.7 },
+      { id: "b", start_time_s: 14, end_time_s: 17, text: "still", confidence: 0.3 },
+    ];
+    const state = initialEditingState(snapshot);
+    const next = editingReducer(state, { type: "COMMIT_DRAG", snapshot, present });
+    // Segment "a" moved — confidence cleared.
+    expect(next.present.find((s) => s.id === "a")!.confidence).toBeNull();
+    // Segment "b" unchanged — confidence preserved.
+    expect(next.present.find((s) => s.id === "b")!.confidence).toBe(0.3);
   });
 
   it("DELETE_SEGMENT preserves confidence on remaining segments", () => {

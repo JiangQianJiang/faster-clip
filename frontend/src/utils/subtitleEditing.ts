@@ -113,11 +113,19 @@ export function editingReducer(state: EditingState, action: EditingAction): Edit
 
   if (action.type === "COMMIT_DRAG") {
     if (sameSegments(action.snapshot, action.present)) return state;
+    // Clear confidence on segments whose timing changed during drag.
+    const present = action.present.map((seg) => {
+      const snap = action.snapshot.find((s) => s.id === seg.id);
+      if (snap && (snap.start_time_s !== seg.start_time_s || snap.end_time_s !== seg.end_time_s)) {
+        return { ...seg, confidence: null };
+      }
+      return seg;
+    });
     // Trim past to prevent unbounded growth (keep last 199 entries)
     const past = state.past.length >= 200 ? state.past.slice(-199) : state.past;
     return {
       past: [...past, cloneSegments(action.snapshot)],
-      present: cloneSegments(action.present),
+      present: present,
       future: [],
     };
   }
@@ -340,12 +348,10 @@ export function moveSegmentClipWindow(
       Math.max(clipStart, clipEnd - duration),
     );
     const end = roundSeconds(start + duration);
-    const timingChanged = start !== segment.start_time_s || end !== segment.end_time_s;
     return {
       ...segment,
       start_time_s: start,
       end_time_s: end,
-      ...(timingChanged ? { confidence: null } : {}),
     };
   }));
 }
@@ -364,20 +370,14 @@ export function resizeSegmentClipWindow(
     if (segment.id !== id) return { ...segment };
     const snapped = clamp(snapToFrame(time, fps), clipStart, clipEnd);
     if (edge === "start") {
-      const newStart = Math.min(snapped, roundSeconds(segment.end_time_s - minDuration));
-      const timingChanged = newStart !== segment.start_time_s;
       return {
         ...segment,
-        start_time_s: newStart,
-        ...(timingChanged ? { confidence: null } : {}),
+        start_time_s: Math.min(snapped, roundSeconds(segment.end_time_s - minDuration)),
       };
     }
-    const newEnd = Math.max(snapped, roundSeconds(segment.start_time_s + minDuration));
-    const timingChanged = newEnd !== segment.end_time_s;
     return {
       ...segment,
-      end_time_s: newEnd,
-      ...(timingChanged ? { confidence: null } : {}),
+      end_time_s: Math.max(snapped, roundSeconds(segment.start_time_s + minDuration)),
     };
   }));
 }

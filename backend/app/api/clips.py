@@ -156,40 +156,54 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
     ):
         raise HTTPException(400, detail="无效的字幕路径")
 
-    # Always (re)generate from transcript so line-breaker is applied even
-    # for clip subtitle files that predate the feature.
     transcript_path = str(OUTPUT_DIR / task_id / "transcript.json")
-    if not os.path.isfile(transcript_path):
-        raise HTTPException(404, detail="字幕文件不存在")
-    try:
-        with open(transcript_path, encoding="utf-8") as f:
-            all_segments = json.load(f)
-        window_start = clip.get("export_start_time_s", 0)
-        window_end = clip.get("export_end_time_s", 0)
-        filtered = get_clip_subtitle_segments(
-            all_segments, window_start, window_end
-        )
-        from app.services.line_breaker import break_lines
+    if not os.path.isfile(abs_path):
+        # Sidecar missing — (re)generate from transcript with line-breaker.
+        if not os.path.isfile(transcript_path):
+            raise HTTPException(404, detail="字幕文件不存在")
+        try:
+            with open(transcript_path, encoding="utf-8") as f:
+                all_segments = json.load(f)
+            window_start = clip.get("export_start_time_s", 0)
+            window_end = clip.get("export_end_time_s", 0)
+            filtered = get_clip_subtitle_segments(
+                all_segments, window_start, window_end
+            )
+            from app.services.line_breaker import break_lines
 
-        for seg in filtered:
-            seg["text"] = break_lines(seg["text"])
-        from app.services.subtitle import (
-            segments_to_ass,
-            segments_to_srt,
-            segments_to_vtt,
-        )
+            for seg in filtered:
+                seg["text"] = break_lines(seg["text"])
+            from app.services.subtitle import (
+                segments_to_ass,
+                segments_to_srt,
+                segments_to_vtt,
+            )
 
-        formatters = {
-            "srt": segments_to_srt,
-            "vtt": segments_to_vtt,
-            "ass": segments_to_ass,
-        }
-        content = formatters[format](filtered)
-        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-        with open(abs_path, "w", encoding="utf-8") as f:
-            f.write(content)
-    except Exception:
-        raise HTTPException(404, detail="字幕文件不存在")
+            formatters = {
+                "srt": segments_to_srt,
+                "vtt": segments_to_vtt,
+                "ass": segments_to_ass,
+            }
+            content = formatters[format](filtered)
+            os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+            with open(abs_path, "w", encoding="utf-8") as f:
+                f.write(content)
+        except Exception:
+            raise HTTPException(404, detail="字幕文件不存在")
+    elif os.path.isfile(transcript_path):
+        # Sidecar exists but may predate line-breaker — regenerate once.
+        try:
+            from app.services.subtitle import generate_clip_subtitles
+
+            with open(transcript_path, encoding="utf-8") as f:
+                all_segments = json.load(f)
+            window_start = clip.get("export_start_time_s", 0)
+            window_end = clip.get("export_end_time_s", 0)
+            generate_clip_subtitles(
+                all_segments, window_start, window_end, str(OUTPUT_DIR / task_id), idx
+            )
+        except Exception:
+            pass  # best-effort; serve the existing file below
 
     media_types = {"srt": "text/plain", "vtt": "text/plain", "ass": "text/x-ssa"}
     filename = f"clip_{idx:03d}.{format}"
