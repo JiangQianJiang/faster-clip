@@ -100,10 +100,14 @@ def break_lines(text: str, max_chars_per_line: int = DEFAULT_MAX_CHARS_PER_LINE)
         first = text[:break_at]
         second = text[break_at:]
 
-    # Truncate the second line if it still exceeds the budget.
-    # The ellipsis replaces the final character so total length stays at
-    # max_chars_per_line (e.g. 14 chars including the ellipsis).
+    # Truncate the second line if it still exceeds the budget, backtracking
+    # to avoid splitting a protected token (English word / number).
     if len(second) > max_chars_per_line:
-        second = second[: max_chars_per_line - 1] + "…"
+        cut = max_chars_per_line - 1
+        while cut > 0 and not _is_safe_break(second, cut):
+            cut -= 1
+        if cut <= 0:
+            cut = max_chars_per_line - 1  # fallback
+        second = second[:cut] + "…"
 
     return f"{first}\n{second}"

@@ -279,21 +279,37 @@ export function isInsideClipWindow(
 }
 
 export function mergeClipEditsToTranscript(
-  fullTranscript: { start_time_s: number; end_time_s: number; text: string }[],
+  fullTranscript: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null }[],
   clipStart: number,
   clipEnd: number,
   editedSegments: EditableSubtitleSegment[],
-): { start_time_s: number; end_time_s: number; text: string }[] {
-  const outside = fullTranscript.filter(
-    (s) => !isInsideClipWindow(s, clipStart, clipEnd),
-  );
+): { start_time_s: number; end_time_s: number; text: string; confidence?: number | null }[] {
+  const outside = fullTranscript
+    .filter((s) => !isInsideClipWindow(s, clipStart, clipEnd))
+    .map(({ start_time_s, end_time_s, text, confidence }) => {
+      const entry: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null } = {
+        start_time_s: roundSeconds(start_time_s),
+        end_time_s: roundSeconds(end_time_s),
+        text,
+      };
+      if (confidence !== undefined) {
+        entry.confidence = confidence;
+      }
+      return entry;
+    });
   const editedPayload = editedSegments
     .filter((segment) => isInsideClipWindow(segment, clipStart, clipEnd))
-    .map(({ start_time_s, end_time_s, text }) => ({
-      start_time_s: roundSeconds(start_time_s),
-      end_time_s: roundSeconds(end_time_s),
-      text,
-    }));
+    .map(({ start_time_s, end_time_s, text, confidence }) => {
+      const entry: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null } = {
+        start_time_s: roundSeconds(start_time_s),
+        end_time_s: roundSeconds(end_time_s),
+        text,
+      };
+      if (confidence !== undefined) {
+        entry.confidence = confidence;
+      }
+      return entry;
+    });
   const merged = [...outside, ...editedPayload];
   merged.sort((a, b) =>
     a.start_time_s === b.start_time_s
