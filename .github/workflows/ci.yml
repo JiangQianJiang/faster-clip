@@ -27,4 +27,8 @@ jobs:
         run: ruff check . && ruff format --check .
 
       - name: Test
+        env:
+          PYTEST_RUNNING: "true"
+          API_KEY_ENCRYPTION_KEY: Y2ktdGVzdC1mZXJuZXQta2V5LWZha2UtZm9yLXRlc3Rpbmc=
+          DEFAULT_ASR_PROVIDER: qwen
         run: python -m pytest tests/ -q
