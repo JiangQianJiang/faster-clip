@@ -17,12 +17,12 @@ jobs:
         run: docker build -t live-clipper-backend ./backend
 
       - name: Format check
-        run: docker run --rm -e RUFF_NO_CACHE=1 live-clipper-backend sh -c "pip install ruff && python -m ruff format --check ."
+        run: docker run --rm -e RUFF_NO_CACHE=true live-clipper-backend sh -c "pip install ruff && python -m ruff format --check ."
 
       - name: Test
         run: >
           docker run --rm
           -e PYTEST_RUNNING=true
-          -e RUFF_NO_CACHE=1
+          -e RUFF_NO_CACHE=true
           live-clipper-backend
           sh -c "pip install pytest && python -m pytest tests/ -q -p no:cacheprovider"
