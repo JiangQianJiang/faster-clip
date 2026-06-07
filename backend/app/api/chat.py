@@ -60,8 +60,8 @@ async def chat_endpoint(task_id: str, request: Request):
     try:
         body = await request.json()
         user_message = (body.get("message") or "").strip()
-    except (json.JSONDecodeError, AttributeError):
-        raise HTTPException(400, detail="请求体必须是 JSON 格式")
+    except (json.JSONDecodeError, AttributeError) as e:
+        raise HTTPException(400, detail="请求体必须是 JSON 格式") from e
 
     if not user_message:
         raise HTTPException(400, detail="消息不能为空")
@@ -91,8 +91,6 @@ async def chat_endpoint(task_id: str, request: Request):
         )
 
     # Acquire Redis distributed lock for this task's chat
-    from app.chat_lock import ChatLock
-
     from app.chat_lock import ChatLock, ChatLockUnavailable
 
     chat_lock = ChatLock(task_id)

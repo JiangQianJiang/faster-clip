@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-from unittest.mock import patch
 
 
 def _init_db():

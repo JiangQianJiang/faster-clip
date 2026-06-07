@@ -6,7 +6,6 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.services.line_breaker import break_lines
 from app.services.subtitle import generate_clip_subtitles, get_clip_subtitle_segments
 
 
@@ -257,7 +256,6 @@ class TestExportLineBreak:
 
 # ── helpers for extracting cue bodies from subtitle formats ──────────────
 
-import re as _re
 
 
 def _extract_srt_bodies(content: str) -> list[str]:

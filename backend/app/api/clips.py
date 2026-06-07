@@ -12,7 +12,6 @@ from app.models.task import (
     ensure_clips_have_ids,
     get_task,
     update_task_if_version,
-    update_task_status,
 )
 from app.services.subtitle import get_clip_subtitle_segments
 

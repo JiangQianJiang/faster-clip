@@ -1,5 +1,6 @@
 """Shared utilities for API route modules."""
 
+import contextlib
 import json
 import os
 import shutil
@@ -16,10 +17,8 @@ SUBTITLE_MAX_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 def _cleanup_task(task_id: str, video_dir: Path | None = None):
-    try:
+    with contextlib.suppress(Exception):
         delete_task(task_id)
-    except Exception:
-        pass
     if video_dir and video_dir.exists():
         shutil.rmtree(str(video_dir), ignore_errors=True)
 

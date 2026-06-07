@@ -9,29 +9,20 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Build backend image
+        run: docker compose build backend
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r requirements-dev.txt
-
-      - name: Install ruff
-        run: pip install ruff
-
-      - name: Lint
-        run: ruff check . && ruff format --check .
+      - name: Install dev deps & lint
+        run: docker compose run --rm --no-deps backend sh -c "pip install ruff && ruff format --check ."
 
       - name: Test
-        env:
-          PYTEST_RUNNING: "true"
-          API_KEY_ENCRYPTION_KEY: Y2ktdGVzdC1mZXJuZXQta2V5LWZha2UtZm9yLXRlc3Rpbmc=
-          DEFAULT_ASR_PROVIDER: qwen
-        run: python -m pytest tests/ -q
+        run: >
+          docker compose run --rm --no-deps
+          -e PYTEST_RUNNING=true
+          -e API_KEY_ENCRYPTION_KEY=Y2ktdGVzdC1mZXJuZXQta2V5LWZha2UtZm9yLXRlc3Rpbmc=
+          -e DEFAULT_ASR_PROVIDER=qwen
+          backend sh -c "pip install pytest && python -m pytest tests/ -q"

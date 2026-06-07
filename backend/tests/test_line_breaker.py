@@ -4,12 +4,9 @@ break points, English/number boundary protection, idempotency, and truncation.""
 import os
 import sys
 
-import pytest
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.services.line_breaker import break_lines
-
 
 # ---------------------------------------------------------------------------
 # AC-1: Filler compression
