@@ -48,6 +48,7 @@ def test_startup_valid_asr_provider_passes():
             {
                 "DEFAULT_ASR_PROVIDER": "whisper_api",
                 "API_KEY_ENCRYPTION_KEY": "gCW0ZvxPWL4R5PMVxpLNMCNQ2xhT1NWK_vDXI5_OHOk=",
+                "ACCESS_TOKEN": "ci-test-token-at-least-32-characters-long-not-secret",
             },
             clear=True,
         ):
@@ -72,6 +73,7 @@ def test_startup_invalid_asr_provider_value_fails():
             {
                 "DEFAULT_ASR_PROVIDER": "openai_whisper",
                 "API_KEY_ENCRYPTION_KEY": "gCW0ZvxPWL4R5PMVxpLNMCNQ2xhT1NWK_vDXI5_OHOk=",
+                "ACCESS_TOKEN": "ci-test-token-at-least-32-characters-long-not-secret",
             },
             clear=True,
         ):

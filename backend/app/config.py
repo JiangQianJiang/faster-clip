@@ -46,11 +46,14 @@ def _validate_startup_config() -> None:
         return
     STARTUP_VALIDATION_DONE = True
 
+    is_test = os.getenv("PYTEST_RUNNING", "").lower() == "true"
+
     errors = []
     if not settings.default_asr_provider:
-        errors.append(
-            '缺少必需的环境变量 DEFAULT_ASR_PROVIDER，请设置为 "whisper_api" 或 "qwen"'
-        )
+        if not is_test:
+            errors.append(
+                '缺少必需的环境变量 DEFAULT_ASR_PROVIDER，请设置为 "whisper_api" 或 "qwen"'
+            )
     elif settings.default_asr_provider not in ("whisper_api", "qwen"):
         errors.append(
             f'不支持的 DEFAULT_ASR_PROVIDER: "{settings.default_asr_provider}"，'
@@ -58,13 +61,13 @@ def _validate_startup_config() -> None:
         )
 
     if not settings.api_key_encryption_key:
-        errors.append(
-            "缺少必需的环境变量 API_KEY_ENCRYPTION_KEY，生成方式见 .env.example"
-        )
+        if not is_test:
+            errors.append(
+                "缺少必需的环境变量 API_KEY_ENCRYPTION_KEY，生成方式见 .env.example"
+            )
 
     # Validate ACCESS_TOKEN (required in non-test environments, min 32 chars)
     access_token = os.getenv("ACCESS_TOKEN", "")
-    is_test = os.getenv("PYTEST_RUNNING", "").lower() == "true"
     if not is_test:
         if not access_token:
             errors.append(

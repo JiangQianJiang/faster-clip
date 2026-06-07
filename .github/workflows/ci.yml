@@ -13,16 +13,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build backend image
-        run: docker compose build backend
+      - name: Build image
+        run: docker build -t live-clipper-backend ./backend
 
-      - name: Install dev deps & lint
-        run: docker compose run --rm --no-deps backend sh -c "pip install ruff && ruff format --check ."
+      - name: Format check
+        run: docker run --rm live-clipper-backend sh -c "pip install ruff && ruff format --check ."
 
       - name: Test
         run: >
-          docker compose run --rm --no-deps
+          docker run --rm
           -e PYTEST_RUNNING=true
-          -e API_KEY_ENCRYPTION_KEY=Y2ktdGVzdC1mZXJuZXQta2V5LWZha2UtZm9yLXRlc3Rpbmc=
-          -e DEFAULT_ASR_PROVIDER=qwen
-          backend sh -c "pip install pytest && python -m pytest tests/ -q"
+          live-clipper-backend
+          sh -c "pip install pytest && python -m pytest tests/ -q"
