@@ -6,20 +6,17 @@ FROM python:3.12-slim AS builder
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
     sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
 
-# Install build tools and system deps (ffmpeg from apt)
+# Install build-time system deps (fonts for subtitle rendering, curl for healthcheck)
 # Retry up to 5 times for flaky networks
 RUN for i in 1 2 3 4 5; do \
         apt-get update && \
         apt-get install -y --no-install-recommends \
             fonts-noto-cjk \
-            ffmpeg \
             curl \
+            xz-utils \
         && rm -rf /var/lib/apt/lists/* \
         && break || sleep 10; \
-    done && (command -v ffmpeg && command -v curl) || (echo "ERROR: Required packages not installed after retries" && false)
-
-# Verify ffmpeg installation
-RUN ffprobe -version
+    done && (command -v curl) || (echo "ERROR: Required packages not installed after retries" && false)
 
 # Install Python dependencies
 WORKDIR /app
@@ -38,13 +35,11 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/pytho
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
     sed -i 's|http://deb.debian.org|http://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
 
-# Install runtime system deps
-# ffmpeg installed via apt (not copied) to pull in all shared libraries
+# Install runtime system deps (everything except ffmpeg, which we install separately)
 # libgl1 replaces libgl1-mesa-glx in Debian Trixie
 RUN for i in 1 2 3 4 5; do \
         apt-get update && \
         apt-get install -y --no-install-recommends \
-            ffmpeg \
             libgl1 \
             libglib2.0-0 \
             libsm6 \
@@ -52,9 +47,33 @@ RUN for i in 1 2 3 4 5; do \
             libxrender-dev \
             libfontconfig1 \
             curl \
+            xz-utils \
         && rm -rf /var/lib/apt/lists/* \
         && break || sleep 10; \
-    done && (command -v ffmpeg && command -v ffprobe && command -v curl) || (echo "ERROR: Required packages not installed after retries" && false)
+    done && (command -v curl) || (echo "ERROR: Required packages not installed after retries" && false)
+
+# Install static ffmpeg build (BtbN) for comprehensive codec support.
+# The Debian apt ffmpeg lacks HEVC-in-FLV support, which breaks Bilibili FLV
+# recordings.  Falls back to apt if GitHub is unreachable (e.g. CI behind a
+# proxy — the apt ffmpeg will work for most files, just not HEVC-in-FLV).
+RUN mkdir -p /tmp/ffmpeg && \
+    (curl -fsSL --connect-timeout 10 --max-time 120 \
+        "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz" \
+        -o /tmp/ffmpeg.tar.xz && \
+     tar -xf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg --strip-components=1 && \
+     cp /tmp/ffmpeg/ffmpeg /tmp/ffmpeg/ffprobe /usr/local/bin/ && \
+     chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe && \
+     rm -rf /tmp/ffmpeg /tmp/ffmpeg.tar.xz) || \
+    (echo "WARNING: Could not download static ffmpeg, falling back to apt ffmpeg" && \
+     echo "HEVC-in-FLV files will NOT be supported with the fallback." && \
+     for i in 1 2 3; do \
+         apt-get update && \
+         apt-get install -y --no-install-recommends ffmpeg && \
+         rm -rf /var/lib/apt/lists/* && break || sleep 10; \
+     done)
+
+# Verify ffmpeg installation
+RUN ffprobe -version && ffmpeg -version
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash appuser

@@ -25,7 +25,8 @@ def _make_mock_subprocess(returncode=0, stdout="{}", stderr=""):
 
 
 def _mock_ffprobe_output(
-    *, codec_name=None, width=None, height=None, duration=60, container="flv"
+    *, codec_name=None, width=None, height=None, duration=60, container="flv",
+    format_tags=None,
 ):
     """Build realistic ffprobe JSON for a single video stream."""
     stream = {"codec_type": "video"}
@@ -38,29 +39,21 @@ def _mock_ffprobe_output(
     # Add a nominal r_frame_rate so fps helpers don't choke
     stream["r_frame_rate"] = "25/1"
     stream["avg_frame_rate"] = "25/1"
+    fmt: dict = {
+        "format_name": container,
+        "duration": str(duration),
+    }
+    if format_tags:
+        fmt["tags"] = format_tags
     return json.dumps(
         {
-            "format": {
-                "format_name": container,
-                "duration": str(duration),
-            },
+            "format": fmt,
             "streams": [stream],
         }
     )
 
 
 class TestProbeRejectsUnreadableStream:
-    def test_codec_name_none(self):
-        """ffprobe can't identify codec → CorruptedVideo with helpful hint."""
-        out = _mock_ffprobe_output(codec_name=None, width=1920, height=1080)
-        with patch("subprocess.run", return_value=_make_mock_subprocess(stdout=out)):
-            try:
-                probe("/fake/video.flv")
-                assert False, "should have raised CorruptedVideo"
-            except CorruptedVideo as e:
-                assert "编码" in str(e)
-                assert "不支持的编码格式" in str(e)
-
     def test_width_zero(self):
         """ffprobe returns width=0 → CorruptedVideo."""
         out = _mock_ffprobe_output(codec_name="hevc", width=0, height=1080)
@@ -145,3 +138,66 @@ class TestProbeAcceptsValidStream:
             info = probe("/fake/video.flv")
             assert info.codec == "h264"
             assert info.width == 1280
+
+    def test_unknown_codec_with_valid_dims(self):
+        """Unknown codec but valid dimensions → accepted with codec='unknown'.
+
+        This covers ffmpeg builds (e.g. Debian) that cannot identify HEVC in
+        FLV containers but can still report the stream dimensions.  The
+        downstream pipeline can auto-detect the codec at processing time.
+        """
+        out = _mock_ffprobe_output(codec_name=None, width=1920, height=1080)
+        with patch("subprocess.run", return_value=_make_mock_subprocess(stdout=out)):
+            info = probe("/fake/video.flv")
+            assert info.codec == "unknown"
+            assert info.width == 1920
+            assert info.height == 1080
+
+    def test_hevc_in_flv_format_tag_fallback(self):
+        """HEVC-in-FLV where stream metadata is unreadable but format tags
+        carry displayWidth / displayHeight (Bilibili live recording pattern).
+        """
+        out = _mock_ffprobe_output(
+            codec_name=None,
+            width=0,
+            height=0,
+            container="flv",
+            format_tags={
+                "displayWidth": "1920",
+                "displayHeight": "1080",
+                "fps": "60",
+                "encoder": "BVC-SRT LiveHime/7.23.0",
+            },
+        )
+        with patch("subprocess.run", return_value=_make_mock_subprocess(stdout=out)):
+            info = probe("/fake/video.flv")
+            assert info.codec == "unknown"
+            assert info.width == 1920
+            assert info.height == 1080
+            assert info.container == "flv"
+
+    def test_codec_from_encoder_tag_hevc(self):
+        """Encoder tag contains 'hevc' → codec inferred as 'hevc'."""
+        out = _mock_ffprobe_output(
+            codec_name=None,
+            width=1920,
+            height=1080,
+            container="flv",
+            format_tags={"encoder": "LIVE-SRT-HEVC/1.2.3"},
+        )
+        with patch("subprocess.run", return_value=_make_mock_subprocess(stdout=out)):
+            info = probe("/fake/video.flv")
+            assert info.codec == "hevc"
+
+    def test_codec_from_encoder_tag_h264(self):
+        """Encoder tag contains 'h264' → codec inferred as 'h264'."""
+        out = _mock_ffprobe_output(
+            codec_name=None,
+            width=1920,
+            height=1080,
+            container="flv",
+            format_tags={"encoder": "LIVE-SRT-H264/1.2.3"},
+        )
+        with patch("subprocess.run", return_value=_make_mock_subprocess(stdout=out)):
+            info = probe("/fake/video.flv")
+            assert info.codec == "h264"

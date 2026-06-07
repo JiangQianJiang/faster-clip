@@ -103,13 +103,51 @@ def probe(filepath: str) -> VideoInfo:
     width = vs.get("width")
     height = vs.get("height")
 
-    # Reject streams ffprobe can't decode at all (truly corrupted / unknown codec tags)
-    if not codec_name or not width or not height or width <= 0 or height <= 0:
+    # Some ffmpeg builds (e.g. Debian's) cannot parse certain codecs in FLV
+    # (e.g. H.265/HEVC). Fall back to format-level metadata tags when the
+    # stream-level metadata is incomplete but the file is structurally valid.
+    fmt_tags = fmt.get("tags", {}) or {}
+
+    if not codec_name:
+        # Try format tags for codec hints
+        encoder = fmt_tags.get("encoder", "")
+        if "hevc" in encoder.lower() or "h265" in encoder.lower() or "h.265" in encoder.lower():
+            codec_name = "hevc"
+        elif "h264" in encoder.lower() or "avc" in encoder.lower():
+            codec_name = "h264"
+
+    if (not width or not height or width <= 0 or height <= 0):
+        # Fall back to container-level displayWidth / displayHeight tags.
+        # Bilibili FLV files (BVC-SRT LiveHime encoder) carry these tags.
+        tag_w = fmt_tags.get("displayWidth")
+        tag_h = fmt_tags.get("displayHeight")
+        if tag_w and tag_h:
+            try:
+                width = int(tag_w)
+                height = int(tag_h)
+            except (ValueError, TypeError):
+                pass
+
+    # Dimensions are critical — we must have a usable resolution.  Reject early
+    # when both the stream metadata and the container tags are empty / invalid.
+    if not width or not height or width <= 0 or height <= 0:
         raise CorruptedVideo(
-            f"无法解析视频流编码信息（编码: {codec_name or 'unknown'}, "
-            f"分辨率: {width or 0}x{height or 0}），"
+            f"无法解析视频分辨率（{width or 0}x{height or 0}），"
             f"视频流可能已损坏或使用了不支持的编码格式"
         )
+
+    # Codec is important but not strictly required — downstream ffmpeg can
+    # auto-detect.  Use "unknown" only when both the stream and the format tags
+    # give us nothing.
+    if not codec_name:
+        codec_name = "unknown"
+
+    fps = _stream_fps(vs)
+    if fps <= 0:
+        # Fall back to format-level fps tag (Bilibili FLV files carry this)
+        tag_fps = fmt_tags.get("fps")
+        if tag_fps:
+            fps = _parse_rate(tag_fps)
 
     subtitle_streams = [s for s in streams if s.get("codec_type") == "subtitle"]
 
@@ -121,7 +159,7 @@ def probe(filepath: str) -> VideoInfo:
         container=container.lower(),
         has_video=True,
         subtitle_streams=subtitle_streams,
-        fps=_stream_fps(vs),
+        fps=fps,
         fps_mode=_stream_fps_mode(vs),
     )
 
