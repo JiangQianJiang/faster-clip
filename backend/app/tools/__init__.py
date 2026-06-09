@@ -4,7 +4,8 @@ All tools — both user-facing and kernel — are registered here.
 The registry is the single source of truth for tool discovery.
 """
 
-from app.tools.base import Tool, ToolResult
+from app.tools.base import Tool
+from app.tools.base import ToolResult as ToolResult
 
 _registry: dict[str, Tool] = {}
 
@@ -78,4 +79,5 @@ from app.tools.user import delete_clip as _  # noqa
 
 from app.tools.user import apply_subtitle_style as _  # noqa
 from app.tools.user import get_export_progress as _  # noqa
+from app.tools.user import regenerate_subtitles as _  # noqa
 from app.tools.user import run_asr as _  # noqa

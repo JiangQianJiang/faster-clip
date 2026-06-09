@@ -380,6 +380,14 @@ def save_transcript(segments: list[dict], output_dir: str) -> str:
     return path
 
 
+def save_raw_transcript(segments: list[dict], output_dir: str) -> str:
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, "transcript.raw.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(segments, f, ensure_ascii=False, indent=2)
+    return path
+
+
 def get_clip_subtitle_segments(
     segments: list[dict],
     window_start: float,

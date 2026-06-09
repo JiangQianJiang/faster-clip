@@ -77,12 +77,18 @@ def _merge_clips_with_existing(
         if idx is not None:
             matched_existing.add(idx)
             match = existing_clips[idx]
-            for k in export_keys:
-                if k in match:
-                    nc[k] = match[k]
-            # If the overlap isn't tight, the timestamps have shifted enough
-            # that the old export may not match — reset to pending.
-            if overlap < _MERGE_TIGHT_OVERLAP:
+            # Only carry over export metadata from *successful* exports.
+            # Failed exports (e.g. ffmpeg issues) have no valid filepaths
+            # and must be re-exported, so reset to pending.
+            if match.get("status") == "success":
+                for k in export_keys:
+                    if k in match:
+                        nc[k] = match[k]
+                # If the overlap isn't tight, the timestamps have shifted
+                # enough that the old export may not match — reset to pending.
+                if overlap < _MERGE_TIGHT_OVERLAP:
+                    nc["status"] = "pending"
+            else:
                 nc["status"] = "pending"
         else:
             nc.setdefault("status", "pending")

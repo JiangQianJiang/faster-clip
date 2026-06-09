@@ -36,6 +36,7 @@ from app.services.subtitle import (
     extract_embedded_subtitles,
     generate_clip_subtitles,
     has_text_subtitles,
+    save_raw_transcript,
     save_transcript,
 )
 from app.utils import utcnow_iso
@@ -180,6 +181,9 @@ def run(
             raise StageError(
                 "extracting_subtitles", "无法获取字幕：无内嵌字幕且未配置 ASR API key"
             )
+
+        # Preserve provider/extractor output before display-oriented processing.
+        save_raw_transcript(segments, output_dir)
 
         # Apply word-level segment splitting before persisting so all
         # downstream consumers (export, frontend, LLM analysis) see the

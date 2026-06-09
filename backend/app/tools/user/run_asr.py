@@ -17,9 +17,12 @@ OUTPUT_DIR = Path("data/output")
 class RunASRUser(Tool):
     name = "run_asr"
     description = (
-        "Re-run automatic speech recognition on the video to regenerate subtitles. "
-        "Use when the user wants to re-transcribe with a different model, provider, "
-        "API key, or when the original transcription quality was poor. "
+        "Re-run automatic speech recognition on the video's audio. This retranscribes "
+        "speech from scratch and requires an ASR API key, either stored in the task "
+        "or provided as input. Use only when the user asks to re-recognize audio, "
+        "re-transcribe speech, use a different ASR model/provider, or fix poor speech "
+        "recognition quality. Do not use for rebuilding/reformatting existing "
+        "subtitles; use regenerate_subtitles for that no-API local action. "
         "Supports: whisper_api (OpenAI Whisper / gpt-4o-transcribe) and qwen (Qwen3-ASR)."
     )
     user_facing = True
@@ -29,7 +32,7 @@ class RunASRUser(Tool):
             "task_id": {"type": "string", "description": "Task UUID"},
             "api_key": {
                 "type": "string",
-                "description": "ASR API key (optional — uses the task's stored key if omitted)",
+                "description": "ASR API key required for retranscription (optional only when the task already stores one)",
             },
             "model": {
                 "type": "string",
@@ -171,14 +174,25 @@ class RunASRUser(Tool):
             if audio_path and os.path.exists(audio_path):
                 os.unlink(audio_path)
 
-        # Apply word-level splitting before saving
+        # Save raw ASR output before display-oriented line-breaking/splitting.
+        output_dir = OUTPUT_DIR / task_id
+        output_dir.mkdir(parents=True, exist_ok=True)
+        from app.services.subtitle import save_raw_transcript
+
+        try:
+            save_raw_transcript(segments, str(output_dir))
+        except OSError as e:
+            return ToolResult(
+                success=False,
+                error=str(e),
+                user_message=f"原始字幕保存失败: {e}",
+            )
+
+        # Apply word-level splitting before saving the display transcript.
         from app.services.line_breaker import split_segments
 
         segments = split_segments(segments)
 
-        # Save transcript
-        output_dir = OUTPUT_DIR / task_id
-        output_dir.mkdir(parents=True, exist_ok=True)
         transcript_path = output_dir / "transcript.json"
         try:
             with open(transcript_path, "w", encoding="utf-8") as f:

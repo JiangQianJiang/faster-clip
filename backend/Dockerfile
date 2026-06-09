@@ -56,10 +56,21 @@ RUN for i in 1 2 3 4 5; do \
 # The Debian apt ffmpeg lacks HEVC-in-FLV support, which breaks Bilibili FLV
 # recordings.  Falls back to apt if GitHub is unreachable (e.g. CI behind a
 # proxy — the apt ffmpeg will work for most files, just not HEVC-in-FLV).
+#
+# The 142 MB download can take 3–10 minutes on slower connections.  900 s
+# timeout + retries should cover most networks.  If your build environment
+# cannot reach GitHub at all, pre-download the tarball to
+# /tmp/ffmpeg-btbn.tar.xz and set SKIP_BTBN_DOWNLOAD=true.
 RUN mkdir -p /tmp/ffmpeg && \
-    (curl -fsSL --connect-timeout 10 --max-time 120 \
-        "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz" \
-        -o /tmp/ffmpeg.tar.xz && \
+    (if [ "${SKIP_BTBN_DOWNLOAD:-}" = "true" ] && [ -f /tmp/ffmpeg-btbn.tar.xz ]; then \
+         echo "Using pre-downloaded BtbN ffmpeg from /tmp/ffmpeg-btbn.tar.xz"; \
+         cp /tmp/ffmpeg-btbn.tar.xz /tmp/ffmpeg.tar.xz; \
+     else \
+         echo "Downloading BtbN static ffmpeg (142 MB, may take a few minutes) ..."; \
+         curl -fsSL --connect-timeout 30 --max-time 900 --retry 3 --retry-delay 30 \
+             "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz" \
+             -o /tmp/ffmpeg.tar.xz; \
+     fi && \
      tar -xf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg --strip-components=1 && \
      cp /tmp/ffmpeg/ffmpeg /tmp/ffmpeg/ffprobe /usr/local/bin/ && \
      chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe && \

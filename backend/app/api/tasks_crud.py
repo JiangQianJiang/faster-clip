@@ -39,6 +39,7 @@ from app.services.ffprobe import (
 from app.services.subtitle import (
     SUPPORTED_IMPORT_FORMATS,
     parse_subtitle_bytes,
+    save_raw_transcript,
     save_transcript,
 )
 
@@ -257,6 +258,7 @@ async def create_task_endpoint(
 
         # Save normalized transcript
         output_dir = OUTPUT_DIR / task_id
+        save_raw_transcript(segments, str(output_dir))
         save_transcript(segments, str(output_dir))
 
         from app.utils import utcnow_iso
