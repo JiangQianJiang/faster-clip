@@ -21,6 +21,41 @@ def _remove_display_breaks(segments: list[dict]) -> list[dict]:
     return cleaned
 
 
+def _restore_word_timings(
+    valid_segments: list[dict],
+    source_segments: list[dict],
+) -> list[dict]:
+    """Copy word-level timings from matching source segments after validation."""
+    words_by_key: dict[tuple[float, float, str], list[list[dict]]] = {}
+    for seg in source_segments:
+        words = seg.get("words")
+        if not isinstance(words, list):
+            continue
+        try:
+            key = (
+                round(float(seg["start_time_s"]), 3),
+                round(float(seg["end_time_s"]), 3),
+                str(seg.get("text", "")).strip(),
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+        words_by_key.setdefault(key, []).append(words)
+
+    restored = []
+    for seg in valid_segments:
+        entry = dict(seg)
+        key = (
+            entry["start_time_s"],
+            entry["end_time_s"],
+            entry["text"],
+        )
+        matching_words = words_by_key.get(key)
+        if matching_words:
+            entry["words"] = matching_words.pop(0)
+        restored.append(entry)
+    return restored
+
+
 class RegenerateSubtitles(Tool):
     name = "regenerate_subtitles"
     description = (
@@ -100,7 +135,8 @@ class RegenerateSubtitles(Tool):
         from app.services.line_breaker import split_segments
         from app.services.transcript_validator import validate_transcript
 
-        valid_segments, warnings = validate_transcript(segments)
+        cleaned_segments = _remove_display_breaks(segments)
+        valid_segments, warnings = validate_transcript(cleaned_segments)
         if not valid_segments:
             return ToolResult(
                 success=False,
@@ -108,7 +144,9 @@ class RegenerateSubtitles(Tool):
                 user_message="没有可重新生成的有效字幕",
             )
 
-        regenerated = split_segments(_remove_display_breaks(valid_segments))
+        regenerated = split_segments(
+            _restore_word_timings(valid_segments, cleaned_segments)
+        )
 
         try:
             tmp_path = str(transcript_path) + ".tmp"

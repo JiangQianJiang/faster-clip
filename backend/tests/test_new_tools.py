@@ -159,6 +159,44 @@ def test_regenerate_subtitles_reflows_existing_transcript_without_asr_key(monkey
     assert task["transcript_source"] == "regenerated_subtitles"
 
 
+def test_regenerate_subtitles_preserves_word_timings(monkeypatch, tmp_path):
+    """Regenerating existing subtitles should keep ASR word-level timings."""
+    output_dir = _use_temp_task_store(monkeypatch, tmp_path)
+    task_id = _make_task()
+    transcript_dir = output_dir / task_id
+    transcript_dir.mkdir(parents=True)
+    transcript_path = transcript_dir / "transcript.json"
+    words = [
+        {"text": "今天", "start_time_s": 0.0, "end_time_s": 0.5},
+        {"text": "我们", "start_time_s": 0.5, "end_time_s": 1.0},
+        {"text": "聊聊", "start_time_s": 1.0, "end_time_s": 1.5},
+        {"text": "字幕", "start_time_s": 1.5, "end_time_s": 2.0},
+    ]
+    transcript_path.write_text(
+        json.dumps(
+            [
+                {
+                    "start_time_s": 0.0,
+                    "end_time_s": 2.0,
+                    "text": "今天我们\n聊聊字幕",
+                    "words": words,
+                }
+            ],
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    from app.tools.user.regenerate_subtitles import _regenerate_subtitles
+
+    result = asyncio.run(_regenerate_subtitles.execute(task_id=task_id))
+
+    assert result.success is True
+    regenerated = json.loads(transcript_path.read_text(encoding="utf-8"))
+    output_words = [w for segment in regenerated for w in segment.get("words", [])]
+    assert output_words == words
+
+
 def test_regenerate_subtitles_rewrites_clip_sidecars(monkeypatch, tmp_path):
     """The local regeneration tool should refresh existing clip subtitle files."""
     output_dir = _use_temp_task_store(monkeypatch, tmp_path)

@@ -354,6 +354,7 @@ def split_segments(
             continue
 
         # Always compress fillers first.
+        text = text.replace("\n", "")
         compressed = _compress_fillers(text)
         if not compressed:
             compressed = text

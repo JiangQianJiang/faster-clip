@@ -292,6 +292,19 @@ class TestSplitSegments:
             assert "end_time_s" in s
             assert s["words"] is None
 
+    def test_existing_display_break_does_not_force_resplit_or_orphan(self):
+        """Existing display newlines are ignored when sizing subtitle cards."""
+        first_line = "甲乙丙丁戊己庚辛壬癸子丑"
+        second_line = "寅卯辰巳午未申酉戌亥天地"
+        seg = _make_seg(0.0, 2.4, f"{first_line}\n{second_line}")
+
+        result = split_segments([seg])
+
+        assert len(result) == 1
+        assert result[0]["start_time_s"] == 0.0
+        assert result[0]["end_time_s"] == 2.4
+        assert result[0]["text"].replace("\n", "") == first_line + second_line
+
     def test_word_based_split(self):
         """Segment with word data splits at word boundaries."""
         words = [
