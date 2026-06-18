@@ -172,7 +172,11 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
 
             filtered = split_segments(filtered)
             for seg in filtered:
-                seg["text"] = break_lines(seg["text"])
+                seg["text"] = break_lines(
+                    seg["text"],
+                    allow_truncate=False,
+                    compress_fillers=False,
+                )
             from app.services.subtitle import (
                 segments_to_ass,
                 segments_to_srt,

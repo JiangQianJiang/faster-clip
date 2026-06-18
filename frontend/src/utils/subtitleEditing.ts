@@ -7,6 +7,13 @@ export interface EditableSubtitleSegment {
   text: string;
   /** ASR confidence score in [0, 1], or null when unavailable or after editing. */
   confidence?: number | null;
+  words?: SubtitleWordTiming[] | null;
+}
+
+export interface SubtitleWordTiming {
+  text: string;
+  start_time_s: number;
+  end_time_s: number;
 }
 
 /** Confidence visualisation thresholds — shared constants, not magic numbers. */
@@ -291,15 +298,15 @@ export function isInsideClipWindow(
 }
 
 export function mergeClipEditsToTranscript(
-  fullTranscript: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null }[],
+  fullTranscript: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null; words?: SubtitleWordTiming[] | null }[],
   clipStart: number,
   clipEnd: number,
   editedSegments: EditableSubtitleSegment[],
-): { start_time_s: number; end_time_s: number; text: string; confidence?: number | null }[] {
+): { start_time_s: number; end_time_s: number; text: string; confidence?: number | null; words?: SubtitleWordTiming[] | null }[] {
   const outside = fullTranscript
     .filter((s) => !isInsideClipWindow(s, clipStart, clipEnd))
-    .map(({ start_time_s, end_time_s, text, confidence }) => {
-      const entry: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null } = {
+    .map(({ start_time_s, end_time_s, text, confidence, words }) => {
+      const entry: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null; words?: SubtitleWordTiming[] | null } = {
         start_time_s: roundSeconds(start_time_s),
         end_time_s: roundSeconds(end_time_s),
         text,
@@ -307,18 +314,24 @@ export function mergeClipEditsToTranscript(
       if (confidence !== undefined) {
         entry.confidence = confidence;
       }
+      if (words !== undefined) {
+        entry.words = cloneWords(words);
+      }
       return entry;
     });
   const editedPayload = editedSegments
     .filter((segment) => isInsideClipWindow(segment, clipStart, clipEnd))
-    .map(({ start_time_s, end_time_s, text, confidence }) => {
-      const entry: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null } = {
+    .map(({ start_time_s, end_time_s, text, confidence, words }) => {
+      const entry: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null; words?: SubtitleWordTiming[] | null } = {
         start_time_s: roundSeconds(start_time_s),
         end_time_s: roundSeconds(end_time_s),
         text,
       };
       if (confidence !== undefined) {
         entry.confidence = confidence;
+      }
+      if (words !== undefined) {
+        entry.words = cloneWords(words);
       }
       return entry;
     });
@@ -391,14 +404,17 @@ export function resizeSegmentClipWindow(
 }
 
 export function toTranscriptPayload(segments: EditableSubtitleSegment[]) {
-  return sortSegments(segments).map(({ id: _id, start_time_s, end_time_s, text, confidence }) => {
-    const entry: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null } = {
+  return sortSegments(segments).map(({ id: _id, start_time_s, end_time_s, text, confidence, words }) => {
+    const entry: { start_time_s: number; end_time_s: number; text: string; confidence?: number | null; words?: SubtitleWordTiming[] | null } = {
       start_time_s,
       end_time_s,
       text,
     };
     if (confidence !== undefined) {
       entry.confidence = confidence;
+    }
+    if (words !== undefined) {
+      entry.words = cloneWords(words);
     }
     return entry;
   });
@@ -464,7 +480,12 @@ function createSegmentId(): string {
 }
 
 function cloneSegments(segments: EditableSubtitleSegment[]): EditableSubtitleSegment[] {
-  return segments.map((segment) => ({ ...segment }));
+  return segments.map((segment) => ({ ...segment, words: cloneWords(segment.words) }));
+}
+
+function cloneWords(words: SubtitleWordTiming[] | null | undefined): SubtitleWordTiming[] | null | undefined {
+  if (words === undefined || words === null) return words;
+  return words.map((word) => ({ ...word }));
 }
 
 function sortSegments(segments: EditableSubtitleSegment[]): EditableSubtitleSegment[] {

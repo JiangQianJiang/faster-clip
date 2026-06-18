@@ -197,6 +197,37 @@ def test_regenerate_subtitles_preserves_word_timings(monkeypatch, tmp_path):
     assert output_words == words
 
 
+def test_regenerate_subtitles_repairs_overlapping_timeline(monkeypatch, tmp_path):
+    """Regeneration should leave the stored transcript strict-valid."""
+    output_dir = _use_temp_task_store(monkeypatch, tmp_path)
+    task_id = _make_task()
+    transcript_dir = output_dir / task_id
+    transcript_dir.mkdir(parents=True)
+    transcript_path = transcript_dir / "transcript.json"
+    transcript_path.write_text(
+        json.dumps(
+            [
+                {"start_time_s": 5.0, "end_time_s": 5.0, "text": "零时长"},
+                {"start_time_s": 0.0, "end_time_s": 2.0, "text": "我就觉"},
+                {"start_time_s": 0.5, "end_time_s": 3.0, "text": "我就觉得完整"},
+                {"start_time_s": 4.0, "end_time_s": 5.0, "text": "后面"},
+            ],
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    from app.services.transcript_validator import validate_transcript_strict
+    from app.tools.user.regenerate_subtitles import _regenerate_subtitles
+
+    result = asyncio.run(_regenerate_subtitles.execute(task_id=task_id))
+
+    assert result.success is True
+    regenerated = json.loads(transcript_path.read_text(encoding="utf-8"))
+    assert [s["text"].replace("\n", "") for s in regenerated] == ["我就觉得完整", "后面"]
+    assert validate_transcript_strict(regenerated) is None
+
+
 def test_regenerate_subtitles_rewrites_clip_sidecars(monkeypatch, tmp_path):
     """The local regeneration tool should refresh existing clip subtitle files."""
     output_dir = _use_temp_task_store(monkeypatch, tmp_path)
@@ -300,7 +331,7 @@ def test_regenerate_subtitles_fails_without_current_transcript(monkeypatch, tmp_
 
 
 def test_run_asr_preserves_raw_transcript_before_line_breaking(monkeypatch, tmp_path):
-    """ASR reruns should save raw provider output beside the display transcript."""
+    """ASR reruns should not rewrite text while creating display transcript."""
     output_dir = _use_temp_task_store(monkeypatch, tmp_path)
     video_path = tmp_path / "video.mp4"
     audio_path = tmp_path / "audio.wav"
@@ -333,8 +364,8 @@ def test_run_asr_preserves_raw_transcript_before_line_breaking(monkeypatch, tmp_
     )
     assert raw_segments == [{"start_time_s": 0.0, "end_time_s": 5.0, "text": raw_text}]
     display_text = "".join(s["text"].replace("\n", "") for s in display_segments)
-    assert display_text != raw_text
-    assert "那个那个" not in display_text
+    assert display_text == raw_text
+    assert "那个那个" in display_text
 
 
 def test_subtitle_tool_schemas_separate_rebuild_from_retranscribe():

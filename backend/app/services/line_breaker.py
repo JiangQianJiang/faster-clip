@@ -217,6 +217,7 @@ def break_lines(
     text: str,
     max_chars_per_line: int = MAX_CHARS_PER_LINE,
     allow_truncate: bool = True,
+    compress_fillers: bool = True,
 ) -> str:
     """Insert ``\\n`` into *text* so each line ≤ *max_chars_per_line*.
 
@@ -231,10 +232,11 @@ def break_lines(
     if "\n" in text:
         return text  # idempotent
 
-    original_text = text
-    text = _compress_fillers(text)
-    if not text:
-        return original_text
+    if compress_fillers:
+        original_text = text
+        text = _compress_fillers(text)
+        if not text:
+            return original_text
 
     # Short enough for a single line — return as-is.
     if len(text) <= max_chars_per_line:
@@ -333,6 +335,7 @@ def split_segments(
     segments: list[dict],
     max_chars_per_segment: int = MAX_CHARS_PER_SEGMENT,
     max_chars_per_line: int = MAX_CHARS_PER_LINE,
+    normalize_text: bool = False,
 ) -> list[dict]:
     """Split long segments into sub-segments at semantic boundaries.
 
@@ -343,8 +346,9 @@ def split_segments(
     Every result has ``break_lines`` applied so the text carries ``\\n``
     for multi-line display rendering.
 
-    Segments already within the limit are returned with filler compression
-    and line-breaking applied.
+    By default, transcript text is not rewritten beyond generated display line
+    breaks.  Set *normalize_text* to compress filler/repetition artifacts as a
+    separate, explicit operation.
     """
     result: list[dict] = []
     for seg in segments:
@@ -353,27 +357,33 @@ def split_segments(
         if not text.strip():
             continue
 
-        # Always compress fillers first.
         text = text.replace("\n", "")
-        compressed = _compress_fillers(text)
-        if not compressed:
-            compressed = text
+        reflow_text = _compress_fillers(text) if normalize_text else text
+        if not reflow_text:
+            reflow_text = text
 
-        if len(compressed) <= max_chars_per_segment:
+        if len(reflow_text) <= max_chars_per_segment:
             # Fits in one subtitle card — just apply line-breaking.
             entry = dict(seg)
-            entry["text"] = break_lines(compressed, max_chars_per_line)
+            entry["text"] = break_lines(
+                reflow_text,
+                max_chars_per_line,
+                allow_truncate=False,
+                compress_fillers=normalize_text,
+            )
+            if entry.get("words") and not _words_match_text(entry["words"], entry["text"]):
+                entry.pop("words", None)
             result.append(entry)
             continue
 
         # Need to split into multiple sub-segments.
         if words:
             sub = _split_segment_by_words(
-                seg, words, compressed, max_chars_per_segment, max_chars_per_line
+                seg, words, reflow_text, max_chars_per_segment, max_chars_per_line
             )
         else:
             sub = _split_segment_by_chars(
-                seg, compressed, max_chars_per_segment, max_chars_per_line
+                seg, reflow_text, max_chars_per_segment, max_chars_per_line
             )
         result.extend(sub)
 
@@ -483,7 +493,12 @@ def _split_segment_by_chars(
         entry: dict = {
             "start_time_s": round(seg["start_time_s"] + duration * ratio_start, 3),
             "end_time_s": round(seg["start_time_s"] + duration * ratio_end, 3),
-            "text": break_lines(chunk_text, max_line_chars),
+            "text": break_lines(
+                chunk_text,
+                max_line_chars,
+                allow_truncate=False,
+                compress_fillers=False,
+            ),
             "words": None,
         }
         if "confidence" in seg:
@@ -502,9 +517,18 @@ def _make_sub_segment(
     entry: dict = {
         "start_time_s": words[0]["start_time_s"],
         "end_time_s": words[-1]["end_time_s"],
-        "text": break_lines(text, max_line_chars, allow_truncate=False),
+        "text": break_lines(
+            text,
+            max_line_chars,
+            allow_truncate=False,
+            compress_fillers=False,
+        ),
         "words": words,
     }
     if "confidence" in parent_seg:
         entry["confidence"] = parent_seg["confidence"]
     return entry
+
+
+def _words_match_text(words: list[dict], text: str) -> bool:
+    return "".join(str(w.get("text", "")) for w in words) == text.replace("\n", "")

@@ -204,6 +204,44 @@ class TestValidateTranscript:
         valid, warnings = validate_transcript(segs)
         assert len(valid) == MAX_SEGMENTS + 100
 
+    def test_sanitize_transcript_timeline_drops_zero_duration_and_repairs_overlaps(self):
+        """ASR/regenerate callers can normalize transcripts into strict timeline order."""
+        import app.services.transcript_validator as validator
+
+        segs = [
+            {"start_time_s": 5.0, "end_time_s": 5.0, "text": "zero"},
+            {
+                "start_time_s": 0.0,
+                "end_time_s": 2.0,
+                "text": "我就觉",
+                "words": [
+                    {"text": "我", "start_time_s": 0.0, "end_time_s": 0.5},
+                    {"text": "就", "start_time_s": 0.5, "end_time_s": 1.0},
+                    {"text": "觉", "start_time_s": 1.0, "end_time_s": 2.0},
+                ],
+            },
+            {
+                "start_time_s": 0.5,
+                "end_time_s": 3.0,
+                "text": "我就觉得完整",
+                "words": [
+                    {"text": "我", "start_time_s": 0.5, "end_time_s": 0.8},
+                    {"text": "就", "start_time_s": 0.8, "end_time_s": 1.1},
+                    {"text": "觉", "start_time_s": 1.1, "end_time_s": 1.4},
+                    {"text": "得", "start_time_s": 1.4, "end_time_s": 1.7},
+                    {"text": "完", "start_time_s": 1.7, "end_time_s": 2.3},
+                    {"text": "整", "start_time_s": 2.3, "end_time_s": 3.0},
+                ],
+            },
+            {"start_time_s": 4.0, "end_time_s": 5.0, "text": "tail"},
+        ]
+
+        sanitized, warnings = validator.sanitize_transcript_timeline(segs)
+
+        assert [s["text"] for s in sanitized] == ["我就觉得完整", "tail"]
+        assert warnings
+        assert validate_transcript_strict(sanitized) is None
+
 
 class TestValidateTranscriptStrict:
     def test_valid_transcript(self):
@@ -213,6 +251,27 @@ class TestValidateTranscriptStrict:
         ]
         err = validate_transcript_strict(segs)
         assert err is None
+
+    def test_strict_validation_preserves_word_timings(self):
+        segs = [
+            {
+                "start_time_s": 1.0,
+                "end_time_s": 2.0,
+                "text": "你好",
+                "words": [
+                    {"text": "你", "start_time_s": 1.0, "end_time_s": 1.5},
+                    {"text": "好", "start_time_s": 1.5, "end_time_s": 2.0},
+                ],
+            }
+        ]
+
+        err = validate_transcript_strict(segs)
+
+        assert err is None
+        assert segs[0]["words"] == [
+            {"text": "你", "start_time_s": 1.0, "end_time_s": 1.5},
+            {"text": "好", "start_time_s": 1.5, "end_time_s": 2.0},
+        ]
 
     def test_non_list_input(self):
         err = validate_transcript_strict("not a list")

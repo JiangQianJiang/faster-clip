@@ -174,6 +174,16 @@ class RunASRUser(Tool):
             if audio_path and os.path.exists(audio_path):
                 os.unlink(audio_path)
 
+        from app.services.transcript_validator import sanitize_transcript_timeline
+
+        segments, _warnings = sanitize_transcript_timeline(segments)
+        if not segments:
+            return ToolResult(
+                success=False,
+                error="No valid transcript segments after timeline sanitization",
+                user_message="语音识别结果没有有效字幕时间轴",
+            )
+
         # Save raw ASR output before display-oriented line-breaking/splitting.
         output_dir = OUTPUT_DIR / task_id
         output_dir.mkdir(parents=True, exist_ok=True)

@@ -230,6 +230,7 @@ export function useClipEdit({
             end_time_s: s.end_time_s,
             text: s.text,
             confidence: s.confidence,
+            words: s.words,
           };
           if (isInsideClipWindow(s, windowRange.start, windowRange.end)) {
             editable.push(segment);

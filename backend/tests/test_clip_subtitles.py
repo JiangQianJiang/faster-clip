@@ -231,6 +231,46 @@ class TestSubtitleJson:
         finally:
             os.unlink(db_path)
 
+
+class TestClipSubtitleFiltering:
+    def test_clip_boundary_text_matches_clipped_words(self):
+        """Partial clip-window cues should not keep text outside the clipped words."""
+        from app.services.subtitle import get_clip_subtitle_segments
+
+        words = [
+            {"text": "窗", "start_time_s": 10.0, "end_time_s": 10.5},
+            {"text": "外", "start_time_s": 10.5, "end_time_s": 11.0},
+            {"text": "窗", "start_time_s": 11.0, "end_time_s": 11.5},
+            {"text": "内", "start_time_s": 11.5, "end_time_s": 12.0},
+            {"text": "字", "start_time_s": 12.0, "end_time_s": 12.5},
+            {"text": "幕", "start_time_s": 12.5, "end_time_s": 13.0},
+            {"text": "外", "start_time_s": 13.0, "end_time_s": 13.5},
+        ]
+        segments = [
+            {
+                "start_time_s": 10.0,
+                "end_time_s": 13.5,
+                "text": "窗外窗内字幕外",
+                "words": words,
+            }
+        ]
+
+        result = get_clip_subtitle_segments(segments, 11.0, 13.0)
+
+        assert result == [
+            {
+                "start_time_s": 0.0,
+                "end_time_s": 2.0,
+                "text": "窗内字幕",
+                "words": [
+                    {"text": "窗", "start_time_s": 0.0, "end_time_s": 0.5},
+                    {"text": "内", "start_time_s": 0.5, "end_time_s": 1.0},
+                    {"text": "字", "start_time_s": 1.0, "end_time_s": 1.5},
+                    {"text": "幕", "start_time_s": 1.5, "end_time_s": 2.0},
+                ],
+            }
+        ]
+
     def test_no_transcript_file_returns_empty_segments(self):
         task_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:

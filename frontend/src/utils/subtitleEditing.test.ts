@@ -150,6 +150,43 @@ describe("mergeClipEditsToTranscript", () => {
     expect(texts).toEqual(["A", "B-edited", "C", "D"]);
   });
 
+  it("preserves word timings for unchanged and edited transcript rows", () => {
+    const fullWithWords = [
+      {
+        start_time_s: 0,
+        end_time_s: 5,
+        text: "A",
+        words: [{ text: "A", start_time_s: 0, end_time_s: 5 }],
+      },
+      {
+        start_time_s: 5,
+        end_time_s: 10,
+        text: "B",
+        words: [{ text: "B", start_time_s: 5, end_time_s: 10 }],
+      },
+    ];
+    const edited = [
+      {
+        id: "b",
+        start_time_s: 5,
+        end_time_s: 10,
+        text: "B edited",
+        words: [{ text: "B", start_time_s: 5, end_time_s: 10 }],
+      },
+    ] as EditableSubtitleSegment[];
+
+    const result = mergeClipEditsToTranscript(fullWithWords, 5, 10, edited);
+
+    expect(result[0]).toMatchObject({
+      text: "A",
+      words: [{ text: "A", start_time_s: 0, end_time_s: 5 }],
+    });
+    expect(result[1]).toMatchObject({
+      text: "B edited",
+      words: [{ text: "B", start_time_s: 5, end_time_s: 10 }],
+    });
+  });
+
   it("preserves segment crossing start boundary", () => {
     // boundary-start [2, 6] crosses clipStart=5 — not fully inside, preserved
     // inside [6, 9] is fully inside, editable

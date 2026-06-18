@@ -39,6 +39,7 @@ from app.services.subtitle import (
     save_raw_transcript,
     save_transcript,
 )
+from app.services.transcript_validator import sanitize_transcript_timeline
 from app.utils import utcnow_iso
 
 
@@ -141,6 +142,7 @@ def run(
         try:
             with open(transcript_path, encoding="utf-8") as f:
                 segments = json.load(f)
+            segments, _warnings = sanitize_transcript_timeline(segments)
             # Re-split in case this transcript predates word-level splitting.
             segments = split_segments(segments)
             update_task_status(
@@ -181,6 +183,10 @@ def run(
             raise StageError(
                 "extracting_subtitles", "无法获取字幕：无内嵌字幕且未配置 ASR API key"
             )
+
+        segments, _warnings = sanitize_transcript_timeline(segments)
+        if not segments:
+            raise StageError("extracting_subtitles", "字幕时间轴无有效片段", retryable=False)
 
         # Preserve provider/extractor output before display-oriented processing.
         save_raw_transcript(segments, output_dir)

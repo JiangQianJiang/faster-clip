@@ -133,10 +133,10 @@ class RegenerateSubtitles(Tool):
             )
 
         from app.services.line_breaker import split_segments
-        from app.services.transcript_validator import validate_transcript
+        from app.services.transcript_validator import sanitize_transcript_timeline
 
         cleaned_segments = _remove_display_breaks(segments)
-        valid_segments, warnings = validate_transcript(cleaned_segments)
+        valid_segments, warnings = sanitize_transcript_timeline(cleaned_segments)
         if not valid_segments:
             return ToolResult(
                 success=False,

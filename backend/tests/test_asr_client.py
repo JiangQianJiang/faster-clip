@@ -604,3 +604,46 @@ def test_qwen_parse_results_multiple_sentences_words():
     assert result[1]["text"] == "世界"
     assert len(result[1]["words"]) == 2
     assert result[1]["words"][0]["start_time_s"] == 3.0
+
+
+def test_qwen_parse_results_sanitizes_invalid_timeline():
+    """Qwen parser should not return zero-duration, unsorted, or overlapping cues."""
+    data = {
+        "transcripts": [
+            {
+                "sentences": [
+                    {"begin_time": 5000, "end_time": 5000, "text": "零时长"},
+                    {
+                        "begin_time": 1000,
+                        "end_time": 2000,
+                        "text": "我就觉",
+                        "words": [
+                            {"text": "我", "begin_time": 1000, "end_time": 1300},
+                            {"text": "就", "begin_time": 1300, "end_time": 1600},
+                            {"text": "觉", "begin_time": 1600, "end_time": 2000},
+                        ],
+                    },
+                    {
+                        "begin_time": 1200,
+                        "end_time": 3200,
+                        "text": "我就觉得完整",
+                        "words": [
+                            {"text": "我", "begin_time": 1200, "end_time": 1400},
+                            {"text": "就", "begin_time": 1400, "end_time": 1600},
+                            {"text": "觉", "begin_time": 1600, "end_time": 1800},
+                            {"text": "得", "begin_time": 1800, "end_time": 2000},
+                            {"text": "完", "begin_time": 2000, "end_time": 2600},
+                            {"text": "整", "begin_time": 2600, "end_time": 3200},
+                        ],
+                    },
+                    {"begin_time": 4000, "end_time": 5000, "text": "后面"},
+                ]
+            }
+        ]
+    }
+
+    result = _parse_qwen_results(data)
+
+    assert [s["text"] for s in result] == ["我就觉得完整", "后面"]
+    assert all(s["end_time_s"] > s["start_time_s"] for s in result)
+    assert all(result[i]["end_time_s"] <= result[i + 1]["start_time_s"] for i in range(len(result) - 1))

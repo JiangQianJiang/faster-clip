@@ -403,19 +403,15 @@ def get_clip_subtitle_segments(
     for seg in segments:
         if seg["end_time_s"] <= window_start or seg["start_time_s"] >= window_end:
             continue
+        abs_start = max(seg["start_time_s"], window_start)
+        abs_end = min(seg["end_time_s"], window_end)
         rel_start = max(seg["start_time_s"] - window_start, 0.0)
         rel_end = min(seg["end_time_s"] - window_start, window_dur)
         if rel_end - rel_start <= 0:
             continue
-        entry: dict = {
-            "start_time_s": round(rel_start, 3),
-            "end_time_s": round(rel_end, 3),
-            "text": seg["text"],
-        }
-        if "confidence" in seg:
-            entry["confidence"] = seg["confidence"]
+        clipped_words = None
         if "words" in seg and seg["words"]:
-            entry["words"] = [
+            clipped_words = [
                 {
                     "text": w["text"],
                     "start_time_s": round(
@@ -432,8 +428,44 @@ def get_clip_subtitle_segments(
                 - max(w["start_time_s"], window_start)
                 > 0
             ]
+        if clipped_words:
+            text = "".join(str(w["text"]) for w in clipped_words)
+        elif abs_start > seg["start_time_s"] or abs_end < seg["end_time_s"]:
+            text = _clip_text_by_time_ratio(seg, abs_start, abs_end)
+        else:
+            text = seg["text"]
+        if not str(text).strip():
+            continue
+        entry: dict = {
+            "start_time_s": round(rel_start, 3),
+            "end_time_s": round(rel_end, 3),
+            "text": text,
+        }
+        if "confidence" in seg:
+            entry["confidence"] = seg["confidence"]
+        if clipped_words:
+            entry["words"] = clipped_words
         result.append(entry)
     return result
+
+
+def _clip_text_by_time_ratio(seg: dict, abs_start: float, abs_end: float) -> str:
+    text = str(seg.get("text", "")).replace("\n", "")
+    if not text:
+        return text
+    duration = float(seg["end_time_s"]) - float(seg["start_time_s"])
+    if duration <= 0:
+        return text
+    total = len(text)
+    start_idx = max(
+        0,
+        min(total, round((abs_start - float(seg["start_time_s"])) / duration * total)),
+    )
+    end_idx = max(
+        start_idx,
+        min(total, round((abs_end - float(seg["start_time_s"])) / duration * total)),
+    )
+    return text[start_idx:end_idx] or text
 
 
 def generate_clip_subtitles(
@@ -460,7 +492,11 @@ def generate_clip_subtitles(
     # Apply line-breaker as a safety net for any remaining long text.
     # Idempotent — already-broken text is returned unchanged.
     for seg in filtered:
-        seg["text"] = break_lines(seg["text"])
+        seg["text"] = break_lines(
+            seg["text"],
+            allow_truncate=False,
+            compress_fillers=False,
+        )
     fmt_configs = [
         ("srt", segments_to_srt),
         ("vtt", segments_to_vtt),

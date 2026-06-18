@@ -8,9 +8,9 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.services.line_breaker import (
+    _MIN_TRAILING_CHARS,
     MAX_CHARS_PER_LINE,
     MAX_CHARS_PER_SEGMENT,
-    _MIN_TRAILING_CHARS,
     _maybe_absorb_orphan,
     break_lines,
     split_segments,
@@ -398,17 +398,56 @@ class TestSplitSegments:
         result = split_segments([seg])
         assert len(result) == 0
 
-    def test_fillers_compressed_in_split(self):
-        """Filler compression runs before checking length."""
+    def test_fillers_compressed_in_split_when_requested(self):
+        """Filler compression is available as an explicit normalization mode."""
         words = [
             _make_word("那个", 0.0, 0.3),
             _make_word("那个", 0.3, 0.6),
             _make_word("大家好", 0.6, 1.2),
         ]
         seg = _make_seg(0.0, 1.2, "那个那个大家好", words=words)
-        result = split_segments([seg])
+        result = split_segments([seg], normalize_text=True)
         assert len(result) == 1
         assert result[0]["text"] == "那个大家好"
+
+    def test_split_segments_preserves_repeated_text_by_default(self):
+        """Reflow/splitting should not silently rewrite transcript content."""
+        words = [
+            _make_word("大家好", 0.0, 0.5),
+            _make_word("大家好", 0.5, 1.0),
+            _make_word("大家好", 1.0, 1.5),
+            _make_word("大家好", 1.5, 2.0),
+        ]
+        seg = _make_seg(0.0, 2.0, "大家好大家好大家好大家好", words=words)
+
+        result = split_segments([seg])
+
+        assert "".join(s["text"].replace("\n", "") for s in result) == "大家好大家好大家好大家好"
+        assert [w for s in result for w in s.get("words", [])] == words
+
+    def test_split_segments_does_not_truncate_after_early_punctuation_break(self):
+        """Reflow may create an over-budget display line, but must not add ellipsis."""
+        text = "大家好，欢迎来到今天的直播间各位朋友"
+        seg = _make_seg(0.0, 3.0, text)
+
+        result = split_segments([seg])
+
+        assert "".join(s["text"].replace("\n", "") for s in result) == text
+        assert "…" not in result[0]["text"]
+
+    def test_split_segments_drops_mismatched_word_timings(self):
+        """Word timings are kept only when they still match the output text."""
+        seg = _make_seg(
+            0.0,
+            1.0,
+            "可以。",
+            words=[_make_word("可", 0.0, 0.5), _make_word("以", 0.5, 1.0)],
+        )
+
+        result = split_segments([seg])
+
+        assert result[0]["text"] == "可以。"
+        assert "words" not in result[0]
 
     # -------------------------------------------------------------------
     # New: orphan prevention

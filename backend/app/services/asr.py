@@ -407,7 +407,9 @@ def _parse_qwen_results(data: dict) -> list[dict]:
     if not segments:
         raise EmptyTranscript("未检测到语音或音质问题")
 
-    filtered = [s for s in segments if s["text"]]
+    from app.services.transcript_validator import sanitize_transcript_timeline
+
+    filtered, _warnings = sanitize_transcript_timeline(segments)
     if not filtered:
         raise EmptyTranscript("未检测到语音或音质问题")
 
