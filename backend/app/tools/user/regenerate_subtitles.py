@@ -10,17 +10,6 @@ from app.tools.base import Tool, ToolResult
 OUTPUT_DIR = Path("data/output")
 
 
-def _remove_display_breaks(segments: list[dict]) -> list[dict]:
-    """Remove generated display newlines before re-running the line breaker."""
-    cleaned = []
-    for seg in segments:
-        entry = dict(seg)
-        text = str(entry.get("text", ""))
-        entry["text"] = text.replace("\n", "")
-        cleaned.append(entry)
-    return cleaned
-
-
 def _restore_word_timings(
     valid_segments: list[dict],
     source_segments: list[dict],
@@ -59,12 +48,11 @@ def _restore_word_timings(
 class RegenerateSubtitles(Tool):
     name = "regenerate_subtitles"
     description = (
-        "Regenerate subtitles locally from the existing transcript: reflow line "
-        "breaks, re-split long segments, and refresh clip SRT/VTT/ASS sidecar "
-        "files. Does not call ASR, does not transcribe audio, and does not "
-        "require any API key. Use this when the user asks to regenerate, rebuild, "
-        "refresh, or reformat existing subtitles. If the user asks to re-recognize "
-        "speech from audio, use run_asr instead."
+        "Regenerate subtitle sidecar files locally from the existing transcript. "
+        "Does not reflow line breaks or split segments. Does not call ASR, "
+        "transcribe audio, or require any API key. Use this when the user asks "
+        "to regenerate, rebuild, refresh, or re-export existing subtitle files. "
+        "If the user asks to re-recognize speech from audio, use run_asr instead."
     )
     user_facing = True
     parameters = {
@@ -132,11 +120,9 @@ class RegenerateSubtitles(Tool):
                 user_message="字幕文件格式错误",
             )
 
-        from app.services.line_breaker import split_segments
         from app.services.transcript_validator import sanitize_transcript_timeline
 
-        cleaned_segments = _remove_display_breaks(segments)
-        valid_segments, warnings = sanitize_transcript_timeline(cleaned_segments)
+        valid_segments, warnings = sanitize_transcript_timeline(segments)
         if not valid_segments:
             return ToolResult(
                 success=False,
@@ -144,9 +130,7 @@ class RegenerateSubtitles(Tool):
                 user_message="没有可重新生成的有效字幕",
             )
 
-        regenerated = split_segments(
-            _restore_word_timings(valid_segments, cleaned_segments)
-        )
+        regenerated = _restore_word_timings(valid_segments, segments)
 
         try:
             tmp_path = str(transcript_path) + ".tmp"

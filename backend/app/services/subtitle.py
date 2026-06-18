@@ -484,19 +484,6 @@ def generate_clip_subtitles(
 
     filtered = get_clip_subtitle_segments(segments, window_start, window_end)
 
-    # Split long segments at word boundaries using word-level timestamps.
-    # Falls back to character-based splitting when word data is unavailable.
-    from app.services.line_breaker import break_lines, split_segments
-
-    filtered = split_segments(filtered)
-    # Apply line-breaker as a safety net for any remaining long text.
-    # Idempotent — already-broken text is returned unchanged.
-    for seg in filtered:
-        seg["text"] = break_lines(
-            seg["text"],
-            allow_truncate=False,
-            compress_fillers=False,
-        )
     fmt_configs = [
         ("srt", segments_to_srt),
         ("vtt", segments_to_vtt),

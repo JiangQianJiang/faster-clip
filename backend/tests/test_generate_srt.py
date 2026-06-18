@@ -176,55 +176,47 @@ class TestGetClipSubtitleSegmentsConfidence:
         assert result[0]["confidence"] is None
 
 
-# ── export line-break behaviour ───────────────────────────────────────────
+# ── export preserves transcript segments ──────────────────────────────────
 
 
-class TestExportLineBreak:
-    """generate_clip_subtitles applies split_segments() + break_lines() to exported subtitles."""
+class TestExportPreservesSegments:
+    """generate_clip_subtitles writes filtered transcript segments without reflow."""
 
-    def test_long_text_split_into_multiple_cues_in_srt(self):
-        """Long text without word data is split into multiple cues (char fallback)."""
+    def test_long_text_stays_single_cue_in_srt(self):
         long_text = "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"
         segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
-            paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
+            generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
             srt_path = os.path.join(tmpdir, "clip_000.srt")
             assert os.path.isfile(srt_path)
             with open(srt_path) as f:
                 content = f.read()
-            # The original text is split into multiple SRT cues (3 cues).
-            assert content.count("\n\n") >= 2
-            # All text is preserved (joined from all cue bodies).
             cue_bodies = _extract_srt_bodies(content)
-            joined = "".join(cue_bodies)
-            assert joined == long_text.replace("\n", "")
+            assert cue_bodies == [long_text]
 
-    def test_long_text_split_into_multiple_cues_in_vtt(self):
+    def test_long_text_stays_single_cue_in_vtt(self):
         long_text = "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"
         segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
-            paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
+            generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
             vtt_path = os.path.join(tmpdir, "clip_000.vtt")
             assert os.path.isfile(vtt_path)
             with open(vtt_path) as f:
                 content = f.read()
-            # All text is preserved across cues.
             cue_bodies = _extract_vtt_bodies(content)
-            joined = "".join(cue_bodies)
-            assert joined == long_text.replace("\n", "")
+            assert cue_bodies == [long_text]
 
-    def test_ass_export_splits_into_multiple_dialogues(self):
-        r"""Long text without word data → multiple Dialogue lines in ASS."""
+    def test_ass_export_keeps_single_dialogue(self):
         long_text = "大家好欢迎来到今天的直播间今天我们要聊一个非常重要的话题"
         segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
-            paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
+            generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
             ass_path = os.path.join(tmpdir, "clip_000.ass")
             assert os.path.isfile(ass_path)
             with open(ass_path) as f:
                 content = f.read()
-            # Multiple Dialogue lines generated.
-            assert content.count("Dialogue:") >= 3
+            assert content.count("Dialogue:") == 1
+            assert long_text in content
 
     def test_pre_broken_text_not_double_broken(self):
         """Pre-existing newline in text is not doubled by the idempotent breaker."""

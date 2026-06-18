@@ -184,7 +184,6 @@ class RunASRUser(Tool):
                 user_message="语音识别结果没有有效字幕时间轴",
             )
 
-        # Save raw ASR output before display-oriented line-breaking/splitting.
         output_dir = OUTPUT_DIR / task_id
         output_dir.mkdir(parents=True, exist_ok=True)
         from app.services.subtitle import save_raw_transcript
@@ -197,11 +196,6 @@ class RunASRUser(Tool):
                 error=str(e),
                 user_message=f"原始字幕保存失败: {e}",
             )
-
-        # Apply word-level splitting before saving the display transcript.
-        from app.services.line_breaker import split_segments
-
-        segments = split_segments(segments)
 
         transcript_path = output_dir / "transcript.json"
         try:

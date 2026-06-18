@@ -118,7 +118,7 @@ def _use_temp_task_store(monkeypatch, tmp_path):
     return output_dir
 
 
-def test_regenerate_subtitles_reflows_existing_transcript_without_asr_key(monkeypatch, tmp_path):
+def test_regenerate_subtitles_preserves_existing_segments_without_asr_key(monkeypatch, tmp_path):
     """Regenerating existing subtitles should not require an ASR API key."""
     output_dir = _use_temp_task_store(monkeypatch, tmp_path)
     task_id = _make_task(
@@ -152,8 +152,13 @@ def test_regenerate_subtitles_reflows_existing_transcript_without_asr_key(monkey
     assert result.success is True
     assert "无需 ASR API Key" in result.user_message
     updated_segments = json.loads(transcript_path.read_text(encoding="utf-8"))
-    assert len(updated_segments) >= 1
-    assert all(len(s["text"].replace("\n", "")) <= 24 for s in updated_segments)
+    assert updated_segments == [
+        {
+            "start_time_s": 0.0,
+            "end_time_s": 5.0,
+            "text": "这是一条已经存在但是需要重新断行整理的字幕内容",
+        }
+    ]
     task = get_task(task_id)
     assert task["subtitle_segment_count"] == len(updated_segments)
     assert task["transcript_source"] == "regenerated_subtitles"

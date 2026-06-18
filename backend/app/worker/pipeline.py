@@ -31,7 +31,6 @@ from app.services.asr import (
     AuthError as ASRAuthError,
 )
 from app.services.ffprobe import probe
-from app.services.line_breaker import split_segments
 from app.services.subtitle import (
     extract_embedded_subtitles,
     generate_clip_subtitles,
@@ -143,8 +142,6 @@ def run(
             with open(transcript_path, encoding="utf-8") as f:
                 segments = json.load(f)
             segments, _warnings = sanitize_transcript_timeline(segments)
-            # Re-split in case this transcript predates word-level splitting.
-            segments = split_segments(segments)
             update_task_status(
                 task_id, "processing", subtitle_segment_count=len(segments)
             )
@@ -191,10 +188,6 @@ def run(
         # Preserve provider/extractor output before display-oriented processing.
         save_raw_transcript(segments, output_dir)
 
-        # Apply word-level segment splitting before persisting so all
-        # downstream consumers (export, frontend, LLM analysis) see the
-        # split transcript.
-        segments = split_segments(segments)
         save_transcript(segments, output_dir)
         update_task_status(task_id, "processing", subtitle_segment_count=len(segments))
 

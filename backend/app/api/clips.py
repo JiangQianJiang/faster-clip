@@ -157,7 +157,7 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
 
     transcript_path = str(OUTPUT_DIR / task_id / "transcript.json")
     if not os.path.isfile(abs_path):
-        # Sidecar missing — (re)generate from transcript with line-breaker.
+        # Sidecar missing — (re)generate from transcript.
         if not os.path.isfile(transcript_path):
             raise HTTPException(404, detail="字幕文件不存在")
         try:
@@ -168,15 +168,6 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
             filtered = get_clip_subtitle_segments(
                 all_segments, window_start, window_end
             )
-            from app.services.line_breaker import break_lines, split_segments
-
-            filtered = split_segments(filtered)
-            for seg in filtered:
-                seg["text"] = break_lines(
-                    seg["text"],
-                    allow_truncate=False,
-                    compress_fillers=False,
-                )
             from app.services.subtitle import (
                 segments_to_ass,
                 segments_to_srt,
