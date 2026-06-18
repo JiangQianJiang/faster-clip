@@ -66,18 +66,6 @@ def _validate_startup_config() -> None:
                 "缺少必需的环境变量 API_KEY_ENCRYPTION_KEY，生成方式见 .env.example"
             )
 
-    # Validate ACCESS_TOKEN (required in non-test environments, min 32 chars)
-    access_token = os.getenv("ACCESS_TOKEN", "")
-    if not is_test:
-        if not access_token:
-            errors.append(
-                "缺少必需的环境变量 ACCESS_TOKEN。请设置一个至少 32 个字符的高熵随机令牌。"
-            )
-        elif len(access_token) < 32:
-            errors.append(
-                f"ACCESS_TOKEN 长度不足: 需要至少 32 个字符，当前长度为 {len(access_token)}。"
-            )
-
     if errors:
         msg = "启动配置校验失败:\n" + "\n".join(f"  - {e}" for e in errors)
         raise SystemExit(msg)

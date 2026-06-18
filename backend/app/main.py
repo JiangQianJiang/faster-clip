@@ -11,7 +11,7 @@ from app.api.chat import router as chat_router
 from app.api.clips import router as clips_router
 from app.api.subtitles import router as subtitles_router
 from app.api.tasks_crud import router as tasks_crud_router
-from app.auth import AuthMiddleware, create_auth_verify_router
+from app.auth import create_auth_verify_router
 from app.config import _validate_startup_config
 from app.logging_config import (
     _task_id_var,
@@ -49,10 +49,8 @@ app.include_router(create_auth_verify_router())
 # Middleware order (add_middleware prepends — last added = outermost):
 # Execution order: outermost first → innermost last
 # 1. SecurityHeadersMiddleware (outermost — wraps all responses)
-# 2. CORSMiddleware (handles preflight before auth)
-# 3. RateLimitMiddleware (rate-limits auth failures)
-# 4. AuthMiddleware (innermost of add_middleware items, closest to app handlers)
-app.add_middleware(AuthMiddleware)
+# 2. CORSMiddleware (handles preflight)
+# 3. RateLimitMiddleware (rate-limits requests)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,

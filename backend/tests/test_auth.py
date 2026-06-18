@@ -63,7 +63,7 @@ def test_auth_verify_invalid_token(client):
     assert res.status_code == 401
 
 
-# --- Protected routes: no auth ---
+# --- API routes: accessible without auth (AuthMiddleware removed) ---
 
 PROTECTED_ROUTES = [
     ("GET", "/api/tasks"),
@@ -81,57 +81,59 @@ PROTECTED_ROUTES = [
 
 
 @pytest.mark.parametrize("method,path", PROTECTED_ROUTES)
-def test_protected_route_no_auth_returns_401(client, method, path):
-    """All protected routes should return 401 without auth."""
+def test_api_route_accessible_without_auth(client, method, path):
+    """API routes should be accessible without auth (AuthMiddleware removed).
+
+    Returns 404 (task not found) for non-existent task IDs, not 401.
+    """
     if method == "GET":
         res = client.get(path)
     else:
         res = client.request(method, path)
 
-    assert res.status_code == 401
-    assert "WWW-Authenticate" in res.headers
-    assert res.headers["WWW-Authenticate"] == "Bearer"
-    body = res.json()
-    assert body["code"] == "UNAUTHORIZED"
+    # Without auth middleware, routes should NOT return 401.
+    # Non-existent task IDs will return 404.
+    assert res.status_code != 401
 
 
-# --- Protected routes: wrong token ---
+# --- Auth header is ignored (AuthMiddleware removed) ---
 
 @pytest.mark.parametrize("method,path", PROTECTED_ROUTES[:3])  # Sample a few
-def test_protected_route_wrong_token_returns_401(client, method, path):
-    """Protected routes with wrong token should return 401."""
+def test_api_route_with_any_auth_header_still_accessible(client, method, path):
+    """API routes with any auth header should still be accessible (auth is not enforced)."""
     if method == "GET":
         res = client.get(
             path,
-            headers={"Authorization": "Bearer wrong-token"},
+            headers={"Authorization": "Bearer any-random-token"},
         )
     else:
         res = client.request(
             method,
             path,
-            headers={"Authorization": "Bearer wrong-token"},
+            headers={"Authorization": "Bearer any-random-token"},
         )
-    assert res.status_code == 401
+    # Not enforced — should get 404 (not found) not 401
+    assert res.status_code != 401
 
 
 # --- Malformed auth header ---
 
-def test_malformed_auth_header(client):
-    """Auth header without Bearer prefix should return 401."""
+def test_malformed_auth_header_ignored(client):
+    """Auth header without Bearer prefix is ignored (no auth enforcement)."""
     res = client.get(
         "/api/tasks",
         headers={"Authorization": "test-token-" + "x" * 20},
     )
-    assert res.status_code == 401
+    assert res.status_code != 401
 
 
-def test_empty_auth_header(client):
-    """Empty Authorization header should return 401."""
+def test_empty_auth_header_ignored(client):
+    """Empty Authorization header is ignored (no auth enforcement)."""
     res = client.get(
         "/api/tasks",
         headers={"Authorization": ""},
     )
-    assert res.status_code == 401
+    assert res.status_code != 401
 
 
 # --- OPTIONS preflight ---
@@ -153,40 +155,30 @@ def test_security_headers_present(client):
     assert "permissions-policy" in res.headers
 
 
-def test_security_headers_on_error(client):
-    """Error responses should also include security headers."""
-    res = client.get("/api/tasks")
-    assert res.status_code == 401
+def test_security_headers_on_success(client):
+    """Responses should include security headers."""
+    res = client.get("/api/health")
+    assert res.status_code == 200
     assert "x-content-type-options" in res.headers
 
 
-# --- Token not logged ---
+# --- Token is not required (AuthMiddleware removed) ---
 
-def test_auth_failure_does_not_log_token(client, caplog):
-    """Auth failure should not log the submitted token."""
-    import logging
-    caplog.set_level(logging.WARNING, logger="app.auth")
-
-    token = "secret-token-that-should-not-be-logged"
-    res = client.get(
-        "/api/tasks",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert res.status_code == 401
-
-    # Check that the token value is not in log output
-    log_text = caplog.text
-    assert token not in log_text
+def test_api_route_without_token_succeeds_or_404(client):
+    """Without auth middleware, API routes should not return 401."""
+    res = client.get("/api/tasks")
+    # Either 200 (empty list) or another non-401 status
+    assert res.status_code != 401
 
 
-# --- Const-time comparison test ---
+# --- Const-time comparison: verify endpoint still enforces auth internally ---
 
-def test_token_prefix_only_attack(client):
-    """Bearer prefix without valid token should fail (const-time prevents prefix attacks)."""
+def test_auth_verify_still_checks_token(client):
+    """The /api/auth/verify endpoint still validates tokens internally."""
     valid_token = "test-token-" + "x" * 20
-    # Try with just the prefix matching
+    # Wrong token should still fail at the verify endpoint
     res = client.get(
-        "/api/tasks",
-        headers={"Authorization": "Bearer test-token"},
+        "/api/auth/verify",
+        headers={"Authorization": "Bearer wrong-token"},
     )
     assert res.status_code == 401
