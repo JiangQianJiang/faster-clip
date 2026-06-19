@@ -10,6 +10,9 @@ from typing import Any
 from anthropic import Anthropic, AsyncAnthropic
 
 from app.logging_config import TaskContextAdapter
+from app.models.task import get_task
+from app.services.tool_executor import ToolExecutor
+from app.services.workflow_runtime import WorkflowRuntime
 from app.tools import ToolResult, get_tool, get_tool_schemas
 
 _logger = TaskContextAdapter(logging.getLogger("app.chat"), {})
@@ -47,9 +50,18 @@ _DESTRUCTIVE_TOOLS = {"export_clips", "delete_clip", "refine_clips"}
 import re
 
 KEY_PATTERNS = [
+    re.compile(r"Bearer\s+[a-zA-Z0-9._~+/=-]+", re.IGNORECASE),
+    re.compile(r"ACCESS_TOKEN\\s*[=:]\\s*[^\\s,}\\]]+", re.IGNORECASE),
     re.compile(r"sk-ant-[a-zA-Z0-9_-]+"),
     re.compile(r"sk-[a-zA-Z0-9_-]+"),
 ]
+_SENSITIVE_HISTORY_FIELDS = {
+    "llm_api_key",
+    "asr_api_key",
+    "_runtime_api_key",
+    "authorization",
+    "access_token",
+}
 
 
 def _redact_keys(text: str) -> str:
@@ -68,7 +80,11 @@ def _redact_value(value):
     if isinstance(value, str):
         return _redact_keys(value)
     if isinstance(value, dict):
-        return {_redact_keys(k): _redact_value(v) for k, v in value.items()}
+        return {
+            _redact_keys(str(k)): _redact_value(v)
+            for k, v in value.items()
+            if str(k).lower() not in _SENSITIVE_HISTORY_FIELDS
+        }
     if isinstance(value, list):
         return [_redact_value(i) for i in value]
     return value
@@ -131,6 +147,8 @@ class ChatService:
         self.model = llm_config.get("llm_model", "claude-sonnet-4-20250514")
         self.history: list[dict] = []
         self._chat_version: int = 0
+        self.tool_executor = ToolExecutor()
+        self.workflow_runtime = WorkflowRuntime()
 
     async def _load_history(self) -> None:
         """Load conversation history from the database.
@@ -368,6 +386,11 @@ class ChatService:
 
         if success:
             self._chat_version += 1
+        elif get_task(self.task_id) is None:
+            _logger.warning(
+                "chat_history_task_missing",
+                extra={"task_id": self.task_id, "expected": self._chat_version},
+            )
         else:
             _logger.warning(
                 "chat_history_version_conflict",
@@ -399,96 +422,22 @@ class ChatService:
         import os
         return os.getenv(key, default)
 
-    # Errors that are clearly transient — worth one auto-retry before
-    # surfacing to the LLM.  Everything else (parameter errors, auth,
-    # not-found, parse failures, business-logic rejections) is returned
-    # immediately so the agent can decide whether to fix its input and
-    # call again, try a different tool, or report to the user.
-    _TRANSIENT_ERRORS = (
-        "timeout",
-        "timed out",
-        "connection",
-        "network",
-        "dns",
-        "name resolution",
-        "reset by peer",
-        "broken pipe",
-        "eof",
-        "temporarily unavailable",
-        "rate limit",
-        "too many requests",
-        "429",
-        "500",
-        "502",
-        "503",
-        "504",
-        "service unavailable",
-        "连接超时",
-        "网络异常",
-        "网络错误",
-    )
-
     async def _execute_tool_with_retry(
         self,
         tool_name: str,
         tool_input: dict,
+        state_before: str | None = None,
     ) -> ToolResult:
-        """Execute a tool with a single auto-retry for transient failures.
-
-        Only network / timeout / server errors trigger an automatic retry
-        (one extra attempt after a 2-second pause).  All other failures —
-        parameter errors, auth failures, not-found, parse errors, etc. —
-        are returned immediately so the LLM can decide the next step:
-        fix the parameters and call again, try a different approach, or
-        tell the user what went wrong.
-        """
-        import inspect as _inspect
-
-        tool = get_tool(tool_name)
-        if tool is None:
-            return ToolResult(
-                success=False,
-                error=f"Unknown tool: {tool_name}",
-                user_message=f"未知工具: {tool_name}",
-            )
-
-        # Only pass kwargs the tool's execute() actually declares.
-        try:
-            sig = _inspect.signature(tool.execute)
-            exec_kwargs = {
-                k: v for k, v in tool_input.items() if k in sig.parameters
-            }
-        except (ValueError, TypeError):
-            exec_kwargs = dict(tool_input)
-
-        for attempt in range(2):  # initial + 1 auto-retry
-            try:
-                result = await tool.execute(**exec_kwargs)
-            except Exception as e:
-                result = ToolResult(
-                    success=False,
-                    error=str(e),
-                    user_message=f"工具执行异常: {e}",
-                )
-
-            if result.success:
-                return result
-
-            # Auto-retry only for transient errors; surface everything else.
-            error_lower = (result.error or "").lower()
-            is_transient = any(p in error_lower for p in self._TRANSIENT_ERRORS)
-
-            if not is_transient or attempt >= 1:
-                return result
-
-            logging.warning(
-                "Tool %s failed with transient error, retrying in 2s: %s",
-                tool_name,
-                result.error,
-            )
-            await asyncio.sleep(2)
-
-        return result  # unreachable; kept for type completeness
+        """Compatibility wrapper: actual execution lives in ToolExecutor."""
+        if state_before is None:
+            state_before = self.workflow_runtime.get_task_state(get_task(self.task_id))
+        return await self.tool_executor.execute_tool(
+            task_id=self.task_id,
+            tool_name=tool_name,
+            tool_input=tool_input,
+            runtime_api_key=self.runtime_api_key,
+            state_before=state_before,
+        )
 
     # Per-tool checkpoint action definitions (static, no instance state).
     _CHECKPOINT_ACTION_MAP: dict[str, list[dict]] = {
@@ -728,45 +677,44 @@ class ChatService:
                     tool_use_id = block.id
                     tool_input = dict(block.input or {})
 
-                    # Inject task_id and runtime key server-side
-                    tool_input["task_id"] = self.task_id
-                    if self.runtime_api_key:
-                        tool_input["_runtime_api_key"] = self.runtime_api_key
+                    display_input = {**tool_input, "task_id": self.task_id}
 
                     yield self._sse_event(
                         "tool_start",
                         {
                             "tool": tool_name,
                             "tool_use_id": tool_use_id,
-                            "input": {
-                                k: v
-                                for k, v in tool_input.items()
-                                if k != "_runtime_api_key"
-                            },
+                            "input": display_input,
                         },
                     )
 
-                    # Check unknown tool before executing
-                    if get_tool(tool_name) is None:
-                        yield self._sse_event(
-                            "error",
-                            {
-                                "message": f"未知工具: {tool_name}",
-                                "detail": f"Tool '{tool_name}' is not registered",
-                            },
-                        )
+                    tool = get_tool(tool_name)
+                    task = get_task(self.task_id)
+                    state_before = self.workflow_runtime.get_task_state(task)
+
+                    # Unknown tools are still recorded by ToolExecutor, then
+                    # surfaced as the existing terminal error SSE.
+                    if tool is None:
+                        result = await self._execute_tool_with_retry(tool_name, tool_input)
                         tool_results.append(
                             {
                                 "tool_use_id": tool_use_id,
                                 "content": json.dumps(
                                     {
                                         "success": False,
-                                        "error": f"Unknown tool: {tool_name}",
-                                        "user_message": f"未知工具: {tool_name}",
+                                        "error": result.error,
+                                        "user_message": result.user_message,
                                     },
                                     ensure_ascii=False,
                                 ),
                             }
+                        )
+                        yield self._sse_event(
+                            "error",
+                            {
+                                "message": result.user_message or f"未知工具: {tool_name}",
+                                "detail": result.error or f"Tool '{tool_name}' is not registered",
+                            },
                         )
                         self.history.append(
                             {
@@ -779,17 +727,29 @@ class ChatService:
                         await self._save_history()
                         return
 
-                    tool_start = time_mod.monotonic()
-                    result = await self._execute_tool_with_retry(tool_name, tool_input)
-                    tool_duration = (time_mod.monotonic() - tool_start) * 1000
-                    _logger.info(
-                        "tool.execute",
-                        extra={
-                            "tool_name": tool_name,
-                            "duration_ms": round(tool_duration, 1),
-                            "success": result.success,
-                        },
+                    allowed, rejection_reason = self.workflow_runtime.validate_tool_call(
+                        task, tool
                     )
+                    if not allowed:
+                        result = self.tool_executor.record_rejected_tool_call(
+                            task_id=self.task_id,
+                            tool_name=tool_name,
+                            tool_input=tool_input,
+                            reason=rejection_reason or "当前任务状态不允许执行该工具",
+                            state_before=state_before,
+                        )
+                    else:
+                        tool_start = time_mod.monotonic()
+                        result = await self._execute_tool_with_retry(tool_name, tool_input)
+                        tool_duration = (time_mod.monotonic() - tool_start) * 1000
+                        _logger.info(
+                            "tool.execute",
+                            extra={
+                                "tool_name": tool_name,
+                                "duration_ms": round(tool_duration, 1),
+                                "success": result.success,
+                            },
+                        )
 
                     tool_results.append(
                         {
@@ -816,34 +776,26 @@ class ChatService:
                         },
                     )
 
-                    # Update task error state for fatal tool failures.
-                    # Only skip processing-guard refusals — the tool rejected
-                    # because the task is currently being processed by the
-                    # worker. All other failures in fatal tools mark the task
-                    # as error, including missing video, auth errors, etc.
-                    if not result.success and tool_name in FATAL_TOOLS:
-                        _error_text = (result.error or "") + (result.user_message or "")
-                        _is_guard_refusal = (
-                            "while task is processing" in _error_text
-                            or "任务处理中" in _error_text
+                    if result.success:
+                        self.workflow_runtime.apply_tool_success(
+                            self.task_id, tool, result
                         )
-                        if not _is_guard_refusal:
-                            from app.models.task import update_task_status as _update
+                    elif allowed:
+                        self.workflow_runtime.apply_tool_failure(
+                            self.task_id, tool, result
+                        )
 
-                            _update(
-                                self.task_id,
-                                "error",
-                                failed_stage=tool_name,
-                                error_message=result.error
-                                or result.user_message
-                                or f"{tool_name} failed",
-                            )
-
-                    if result.success and tool_name in CHECKPOINT_TOOLS:
+                    if result.success and (
+                        getattr(tool, "requires_checkpoint", False)
+                        or tool_name in CHECKPOINT_TOOLS
+                    ):
                         # Gate checkpoint emission on the active mode.
                         if self.checkpoint_mode == "confirm" or (
                             self.checkpoint_mode == "selective"
-                            and tool_name in _DESTRUCTIVE_TOOLS
+                            and (
+                                getattr(tool, "destructive", False)
+                                or tool_name in _DESTRUCTIVE_TOOLS
+                            )
                         ):
                             checkpoint_hit = True
                             successful_checkpoint_tools.append(tool_name)

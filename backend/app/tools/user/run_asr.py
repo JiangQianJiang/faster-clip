@@ -26,6 +26,11 @@ class RunASRUser(Tool):
         "Supports: whisper_api (OpenAI Whisper / gpt-4o-transcribe) and qwen (Qwen3-ASR)."
     )
     user_facing = True
+    requires_state = ["uploaded", "media_ready"]
+    produces_state = "transcript_ready"
+    destructive = True
+    requires_checkpoint = True
+    fatal_on_failure = True
     parameters = {
         "type": "object",
         "properties": {

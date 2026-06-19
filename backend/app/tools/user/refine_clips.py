@@ -142,6 +142,9 @@ class RefineClips(Tool):
         "Semantic instructions like '保留完整对话' call the LLM to find natural break points."
     )
     user_facing = True
+    requires_state = ["clips_ready"]
+    produces_state = "clips_ready"
+    destructive = True
     parameters = {
         "type": "object",
         "properties": {

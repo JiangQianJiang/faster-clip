@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 import sqlite3
 import time
 import uuid
@@ -13,7 +14,7 @@ from pathlib import Path
 from app.config import settings
 
 DB_PATH = Path(settings.database_path)
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 VALID_STATUSES = ("pending", "queued", "processing", "done", "error")
 
@@ -176,6 +177,30 @@ def _init_db_impl():
             cols = {r[1] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()}
             if {"version", "transcript_version", "chat_version"}.issubset(cols):
                 conn.execute("UPDATE schema_version SET version = 5")
+
+        if current < 6:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS tool_runs (
+                    id TEXT PRIMARY KEY,
+                    task_id TEXT NOT NULL,
+                    tool_name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    input_json TEXT NOT NULL,
+                    output_json TEXT,
+                    error_message TEXT,
+                    started_at TEXT NOT NULL,
+                    finished_at TEXT,
+                    duration_ms INTEGER,
+                    state_before TEXT,
+                    state_after TEXT,
+                    attempt INTEGER DEFAULT 1
+                )
+            """)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_tool_runs_task_id_started_at "
+                "ON tool_runs(task_id, started_at)"
+            )
+            conn.execute("UPDATE schema_version SET version = 6")
 
         conn.commit()
     finally:
@@ -418,6 +443,181 @@ def bump_transcript_version_if_current(
         )
         conn.commit()
         return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+_SENSITIVE_FIELD_NAMES = {
+    "llm_api_key",
+    "asr_api_key",
+    "_runtime_api_key",
+    "authorization",
+    "access_token",
+}
+
+_SENSITIVE_VALUE_PATTERNS = (
+    re.compile(r"Bearer\s+[A-Za-z0-9._~+/=-]+", re.IGNORECASE),
+    re.compile(r"ACCESS_TOKEN\\s*[=:]\\s*[^\\s,}\\]]+", re.IGNORECASE),
+    re.compile(r"sk-ant-[A-Za-z0-9_-]+"),
+    re.compile(r"sk-[A-Za-z0-9_-]+"),
+)
+
+
+def _redact_sensitive_text(text: str) -> str:
+    for pattern in _SENSITIVE_VALUE_PATTERNS:
+        text = pattern.sub("[REDACTED]", text)
+    return text
+
+
+def _sanitize_tool_payload(value):
+    """Remove known secret fields and redact API-key shaped strings."""
+    if isinstance(value, str):
+        return _redact_sensitive_text(value)
+    if isinstance(value, dict):
+        sanitized = {}
+        for key, item in value.items():
+            key_text = str(key)
+            if key_text.lower() in _SENSITIVE_FIELD_NAMES:
+                continue
+            sanitized[_redact_sensitive_text(key_text)] = _sanitize_tool_payload(item)
+        return sanitized
+    if isinstance(value, list):
+        return [_sanitize_tool_payload(item) for item in value]
+    return value
+
+
+def _to_sanitized_json(value) -> str:
+    return json.dumps(_sanitize_tool_payload(value), ensure_ascii=False)
+
+
+def _finish_tool_run(
+    run_id: str,
+    *,
+    status: str,
+    output_data=None,
+    error_message: str | None = None,
+    state_after: str | None = None,
+    duration_ms: int | None = None,
+) -> None:
+    finished_at = _now()
+    output_json = _to_sanitized_json(output_data) if output_data is not None else None
+    error_text = _redact_sensitive_text(error_message or "") if error_message else None
+    conn = _get_conn()
+    try:
+        cursor = conn.execute(
+            """UPDATE tool_runs
+               SET status = ?, output_json = ?, error_message = ?,
+                   finished_at = ?, duration_ms = ?, state_after = ?
+               WHERE id = ?""",
+            (status, output_json, error_text, finished_at, duration_ms, state_after, run_id),
+        )
+        if cursor.rowcount == 0:
+            raise RuntimeError(f"tool_run not found: {run_id}")
+        conn.commit()
+    except Exception:
+        logging.exception("tool_run_finish_failed run_id=%s status=%s", run_id, status)
+        raise
+    finally:
+        conn.close()
+
+
+@_with_retry
+def create_tool_run(
+    *,
+    task_id: str,
+    tool_name: str,
+    input_data: dict,
+    state_before: str | None = None,
+    attempt: int = 1,
+) -> str:
+    run_id = str(uuid.uuid4())
+    now = _now()
+    conn = _get_conn()
+    try:
+        conn.execute(
+            """INSERT INTO tool_runs (
+                   id, task_id, tool_name, status, input_json,
+                   started_at, state_before, attempt
+               ) VALUES (?, ?, ?, 'running', ?, ?, ?, ?)""",
+            (
+                run_id,
+                task_id,
+                tool_name,
+                _to_sanitized_json(input_data),
+                now,
+                state_before,
+                attempt,
+            ),
+        )
+        conn.commit()
+        return run_id
+    except Exception:
+        logging.exception("tool_run_create_failed task_id=%s tool=%s", task_id, tool_name)
+        raise
+    finally:
+        conn.close()
+
+
+@_with_retry
+def finish_tool_run_success(
+    run_id: str,
+    *,
+    output_data,
+    state_after: str | None = None,
+    duration_ms: int | None = None,
+) -> None:
+    _finish_tool_run(
+        run_id,
+        status="success",
+        output_data=output_data,
+        state_after=state_after,
+        duration_ms=duration_ms,
+    )
+
+
+@_with_retry
+def finish_tool_run_error(
+    run_id: str,
+    *,
+    error_message: str,
+    duration_ms: int | None = None,
+    state_after: str | None = None,
+) -> None:
+    _finish_tool_run(
+        run_id,
+        status="error",
+        error_message=error_message,
+        state_after=state_after,
+        duration_ms=duration_ms,
+    )
+
+
+@_with_retry
+def finish_tool_run_rejected(
+    run_id: str,
+    *,
+    reason: str,
+    duration_ms: int | None = None,
+    state_after: str | None = None,
+) -> None:
+    _finish_tool_run(
+        run_id,
+        status="rejected",
+        error_message=reason,
+        state_after=state_after,
+        duration_ms=duration_ms,
+    )
+
+
+@_with_retry
+def list_tool_runs(task_id: str) -> list[dict]:
+    conn = _get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tool_runs WHERE task_id = ? ORDER BY started_at ASC, id ASC",
+            (task_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
     finally:
         conn.close()
 

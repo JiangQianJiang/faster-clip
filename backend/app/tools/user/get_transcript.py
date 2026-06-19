@@ -17,6 +17,7 @@ class GetTranscript(Tool):
         "Use offset/limit to avoid loading too many segments at once."
     )
     user_facing = True
+    requires_state = ["transcript_ready"]
     parameters = {
         "type": "object",
         "properties": {

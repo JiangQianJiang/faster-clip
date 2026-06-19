@@ -14,6 +14,10 @@ class ExportClips(Tool):
     name = "export_clips"
     description = "Export one or more clips to MP4 files. Can optionally burn subtitles into the video."
     user_facing = True
+    requires_state = ["clips_ready"]
+    produces_state = "exported"
+    requires_checkpoint = True
+    fatal_on_failure = True
     parameters = {
         "type": "object",
         "properties": {

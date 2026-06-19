@@ -111,6 +111,9 @@ class AnalyzeHighlights(Tool):
         "and configurable clip count."
     )
     user_facing = True
+    requires_state = ["transcript_ready"]
+    produces_state = "clips_ready"
+    fatal_on_failure = True
     parameters = {
         "type": "object",
         "properties": {

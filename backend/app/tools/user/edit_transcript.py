@@ -14,6 +14,9 @@ class EditTranscript(Tool):
     name = "edit_transcript"
     description = "Edit transcript segments: update text, adjust timing, merge, or split. Accepts a list of edit operations to apply atomically."
     user_facing = True
+    requires_state = ["transcript_ready"]
+    produces_state = "transcript_ready"
+    destructive = True
     parameters = {
         "type": "object",
         "properties": {

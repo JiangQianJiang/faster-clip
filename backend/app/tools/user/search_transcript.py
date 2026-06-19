@@ -26,6 +26,7 @@ class SearchTranscript(Tool):
         "with time_ranges parameter to find clips in those time windows."
     )
     user_facing = True
+    requires_state = ["transcript_ready"]
     parameters = {
         "type": "object",
         "properties": {

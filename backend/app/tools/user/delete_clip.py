@@ -86,6 +86,9 @@ class DeleteClip(Tool):
         "The LLM should translate conditions (e.g. 'score < 5') into indices."
     )
     user_facing = True
+    requires_state = ["clips_ready"]
+    produces_state = "clips_ready"
+    destructive = True
     parameters = {
         "type": "object",
         "properties": {

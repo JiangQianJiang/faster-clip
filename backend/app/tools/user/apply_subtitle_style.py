@@ -13,6 +13,7 @@ class ApplySubtitleStyle(Tool):
         "支持 douyin（抖音短视频）和 minimal（简约对话）两种预设，可覆盖个别参数。"
     )
     user_facing = True
+    requires_state = ["transcript_ready"]
     parameters = {
         "type": "object",
         "properties": {

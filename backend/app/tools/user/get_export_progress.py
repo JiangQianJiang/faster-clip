@@ -14,6 +14,7 @@ class GetExportProgress(Tool):
         "Use after export_clips to check results."
     )
     user_facing = True
+    requires_state = ["exporting", "exported"]
     parameters = {
         "type": "object",
         "properties": {

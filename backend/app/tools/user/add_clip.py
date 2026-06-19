@@ -15,6 +15,8 @@ class AddClip(Tool):
         "Overlaps with existing clips are allowed."
     )
     user_facing = True
+    requires_state = ["transcript_ready"]
+    produces_state = "clips_ready"
     parameters = {
         "type": "object",
         "properties": {

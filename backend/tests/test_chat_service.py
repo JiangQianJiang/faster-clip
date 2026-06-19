@@ -97,7 +97,7 @@ def test_redact_value_preserves_dict_types():
     assert isinstance(result["nested"], dict)
     assert isinstance(result["list"], list)
     assert isinstance(result["list"][0], dict)
-    assert result["llm_api_key"] == "[REDACTED]"
+    assert "llm_api_key" not in result
     assert result["nested"]["key"] == "[REDACTED]"
     assert result["list"][0]["x"] == "[REDACTED]"
     assert result["count"] == 5

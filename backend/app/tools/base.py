@@ -35,6 +35,12 @@ class Tool:
     description: str = ""
     user_facing: bool = False
     parameters: dict[str, Any] = {}
+    requires_state: list[str] = []
+    produces_state: str | None = None
+    destructive: bool = False
+    requires_checkpoint: bool = False
+    fatal_on_failure: bool = False
+    timeout_seconds: int = 120
 
     async def execute(self, **kwargs: Any) -> ToolResult:
         """Execute the tool with the given parameters.
