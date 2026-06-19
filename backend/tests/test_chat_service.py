@@ -118,6 +118,13 @@ def test_redact_sk_key():
     assert "[REDACTED]" in result
 
 
+def test_redact_access_token_assignment():
+    text = "ACCESS_TOKEN = supersecret123"
+    result = _redact_keys(text)
+    assert "supersecret123" not in result
+    assert "[REDACTED]" in result
+
+
 def test_redact_message_deep():
     msg = {
         "role": "user",

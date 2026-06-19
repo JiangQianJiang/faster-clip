@@ -51,7 +51,7 @@ import re
 
 KEY_PATTERNS = [
     re.compile(r"Bearer\s+[a-zA-Z0-9._~+/=-]+", re.IGNORECASE),
-    re.compile(r"ACCESS_TOKEN\\s*[=:]\\s*[^\\s,}\\]]+", re.IGNORECASE),
+    re.compile(r"ACCESS_TOKEN\s*[=:]\s*[^\s,}\]]+", re.IGNORECASE),
     re.compile(r"sk-ant-[a-zA-Z0-9_-]+"),
     re.compile(r"sk-[a-zA-Z0-9_-]+"),
 ]

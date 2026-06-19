@@ -87,7 +87,9 @@ class WorkflowRuntime:
         if status in {"pending", "queued", "processing", "error"}:
             status = "done"
 
-        if produced_state == "exported":
+        if produced_state == "exporting":
+            update_task_status(task_id, "processing", stage="ai_exporting")
+        elif produced_state == "exported":
             update_task_status(task_id, "done", stage="exported")
         elif produced_state in {"transcript_ready", "clips_ready"}:
             update_task_status(task_id, status, stage=produced_state)

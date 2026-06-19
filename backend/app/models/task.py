@@ -457,7 +457,7 @@ _SENSITIVE_FIELD_NAMES = {
 
 _SENSITIVE_VALUE_PATTERNS = (
     re.compile(r"Bearer\s+[A-Za-z0-9._~+/=-]+", re.IGNORECASE),
-    re.compile(r"ACCESS_TOKEN\\s*[=:]\\s*[^\\s,}\\]]+", re.IGNORECASE),
+    re.compile(r"ACCESS_TOKEN\s*[=:]\s*[^\s,}\]]+", re.IGNORECASE),
     re.compile(r"sk-ant-[A-Za-z0-9_-]+"),
     re.compile(r"sk-[A-Za-z0-9_-]+"),
 )

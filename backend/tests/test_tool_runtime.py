@@ -46,6 +46,7 @@ def test_tool_runs_lifecycle_redacts_sensitive_values(tmp_path, monkeypatch):
             "safe": "value",
             "_runtime_api_key": "sk-ant-test-secret",
             "Authorization": "Bearer token sk-test-secret",
+            "env": "ACCESS_TOKEN = supersecret123",
             "nested": {"asr_api_key": "sk-nested-secret"},
         },
         state_before="transcript_ready",
@@ -65,6 +66,7 @@ def test_tool_runs_lifecycle_redacts_sensitive_values(tmp_path, monkeypatch):
     assert "sk-test-secret" not in serialized
     assert "sk-nested-secret" not in serialized
     assert "sk-ant-output-secret" not in serialized
+    assert "supersecret123" not in serialized
     assert "_runtime_api_key" not in success_run["input_json"]
     assert "Authorization" not in success_run["input_json"]
 
@@ -267,6 +269,31 @@ def test_workflow_runtime_advances_state_after_success(tmp_path, monkeypatch):
     assert updated["stage"] == "clips_ready"
 
 
+def test_workflow_runtime_preserves_async_export_processing_state(tmp_path, monkeypatch):
+    task_id = _make_task(tmp_path, monkeypatch)
+    task_model.update_task_status(task_id, "processing", stage="ai_exporting")
+
+    from app.models.task import get_task
+    from app.services.workflow_runtime import WorkflowRuntime
+    from app.tools import get_tool
+    from app.tools.base import ToolResult
+
+    new_state = WorkflowRuntime().apply_tool_success(
+        task_id,
+        get_tool("export_clips"),
+        ToolResult(
+            success=True,
+            data={"enqueued": True, "clip_count": 1},
+            user_message="queued",
+        ),
+    )
+
+    assert new_state == "exporting"
+    updated = get_task(task_id)
+    assert updated["status"] == "processing"
+    assert updated["stage"] == "ai_exporting"
+
+
 def test_chat_service_executes_tool_via_executor_and_persists_redacted_history(
     tmp_path, monkeypatch
 ):
@@ -277,7 +304,7 @@ def test_chat_service_executes_tool_via_executor_and_persists_redacted_history(
     from app.services.chat_service import ChatService
     from app.tools import get_tool
     from app.tools.base import ToolResult
-    from backend.tests.test_chat_service import (
+    from tests.test_chat_service import (
         _MockTextBlock,
         _MockToolUseBlock,
         _make_stream_from_response,
