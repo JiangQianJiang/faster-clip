@@ -91,3 +91,42 @@ def test_startup_invalid_asr_provider_value_fails():
                 cfg.STARTUP_VALIDATION_DONE = False
     finally:
         _reload_settings()
+
+
+def test_database_defaults_to_mysql_outside_pytest():
+    """Production/default config uses MySQL as the primary database engine."""
+    try:
+        with patch.dict(
+            os.environ,
+            {
+                "DEFAULT_ASR_PROVIDER": "qwen",
+                "API_KEY_ENCRYPTION_KEY": "gCW0ZvxPWL4R5PMVxpLNMCNQ2xhT1NWK_vDXI5_OHOk=",
+            },
+            clear=True,
+        ):
+            cfg = _reload_settings()
+
+            assert cfg.settings.database_engine == "mysql"
+            assert cfg.settings.database_url.startswith("mysql+pymysql://")
+    finally:
+        _reload_settings()
+
+
+def test_database_defaults_to_sqlite_during_pytest():
+    """Tests default to the local SQLite fallback unless a test opts into MySQL."""
+    try:
+        with patch.dict(
+            os.environ,
+            {
+                "PYTEST_RUNNING": "true",
+                "DEFAULT_ASR_PROVIDER": "qwen",
+                "API_KEY_ENCRYPTION_KEY": "gCW0ZvxPWL4R5PMVxpLNMCNQ2xhT1NWK_vDXI5_OHOk=",
+            },
+            clear=True,
+        ):
+            cfg = _reload_settings()
+
+            assert cfg.settings.database_engine == "sqlite"
+            assert cfg.settings.database_url.startswith("sqlite:///")
+    finally:
+        _reload_settings()

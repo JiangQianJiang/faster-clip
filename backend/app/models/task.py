@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import re
-import sqlite3
 import time
 import uuid
 from datetime import UTC, datetime
@@ -12,6 +11,7 @@ from functools import wraps
 from pathlib import Path
 
 from app.config import settings
+from app.database import BaseDatabase, get_database
 
 DB_PATH = Path(settings.database_path)
 SCHEMA_VERSION = 6
@@ -21,31 +21,38 @@ VALID_STATUSES = ("pending", "queued", "processing", "done", "error")
 _MIGRATION_LOCK_FILE = DB_PATH.parent / ".migration.lock"
 
 
+def _database() -> BaseDatabase:
+    return get_database(DB_PATH)
+
+
+def _is_retryable_db_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return any(
+        marker in msg
+        for marker in (
+            "locked",
+            "busy",
+            "deadlock",
+            "lock wait timeout",
+            "try restarting transaction",
+        )
+    )
+
+
 def _with_retry(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         for attempt in range(3):
             try:
                 return func(*args, **kwargs)
-            except sqlite3.OperationalError as e:
-                msg = str(e).lower()
-                if "locked" in msg or "busy" in msg:
-                    if attempt < 2:
-                        time.sleep(0.1)
-                        continue
+            except Exception as e:
+                if _is_retryable_db_error(e) and attempt < 2:
+                    time.sleep(0.1)
+                    continue
                 raise
         return None
 
     return wrapper
-
-
-def _get_conn() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
 
 
 from contextlib import contextmanager
@@ -53,6 +60,10 @@ from contextlib import contextmanager
 
 @contextmanager
 def _migration_lock(timeout: int = 30):
+    if settings.database_engine == "mysql":
+        yield
+        return
+
     """Context manager that owns and releases a file-based migration lock.
 
     Raises RuntimeError if the lock cannot be acquired within timeout.
@@ -96,115 +107,152 @@ def init_db():
 
 def _init_db_impl():
     """Run schema migrations. Must be called inside _migration_lock."""
-    conn = _get_conn()
-    try:
+    db = _database()
+    with db.transaction() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS schema_version (
                 version INTEGER PRIMARY KEY
             )
         """)
-        row = conn.execute("SELECT version FROM schema_version").fetchone()
-        current = row["version"] if row else 0
+        _ensure_tasks_table(conn, settings.database_engine)
+        _ensure_tool_runs_table(conn, settings.database_engine)
+        row = conn.fetchone("SELECT version FROM schema_version")
+        if row is None:
+            conn.execute("INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,))
+        else:
+            conn.execute("UPDATE schema_version SET version = ?", (SCHEMA_VERSION,))
 
-        if current < 1:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id TEXT PRIMARY KEY,
-                    status TEXT NOT NULL DEFAULT 'pending',
-                    stage TEXT,
-                    video_path TEXT,
-                    video_filename TEXT,
-                    config_json TEXT NOT NULL DEFAULT '{}',
-                    subtitle_segment_count INTEGER,
-                    clips_json TEXT,
-                    error_message TEXT,
-                    failed_stage TEXT,
-                    empty_clips_reason TEXT,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    started_at TEXT,
-                    completed_at TEXT
-                )
-            """)
-            if current == 0:
-                conn.execute("INSERT INTO schema_version (version) VALUES (1)")
-            else:
-                conn.execute("UPDATE schema_version SET version = 1")
 
-        if current < 2:
-            try:
-                conn.execute("ALTER TABLE tasks ADD COLUMN transcript_source TEXT")
-            except sqlite3.OperationalError:
-                pass
-            try:
-                conn.execute("ALTER TABLE tasks ADD COLUMN transcript_modified_at TEXT")
-            except sqlite3.OperationalError:
-                pass
-            conn.execute("UPDATE schema_version SET version = 2")
+def _text_type(engine: str) -> str:
+    return "LONGTEXT" if engine == "mysql" else "TEXT"
 
-        if current < 3:
-            try:
-                conn.execute("ALTER TABLE tasks ADD COLUMN chat_history_json TEXT")
-            except sqlite3.OperationalError:
-                pass
-            try:
-                conn.execute("ALTER TABLE tasks ADD COLUMN chat_updated_at TEXT")
-            except sqlite3.OperationalError:
-                pass
-            conn.execute("UPDATE schema_version SET version = 3")
 
-        if current < 4:
-            try:
-                conn.execute("ALTER TABLE tasks ADD COLUMN media_info_json TEXT")
-            except sqlite3.OperationalError:
-                pass
-            conn.execute("UPDATE schema_version SET version = 4")
+def _short_text_type(engine: str) -> str:
+    return "VARCHAR(255)" if engine == "mysql" else "TEXT"
 
-        if current < 5:
-            for col, default in [
-                ("version", "0"),
-                ("transcript_version", "0"),
-                ("chat_version", "0"),
-            ]:
-                try:
-                    conn.execute(
-                        f"ALTER TABLE tasks ADD COLUMN {col} INTEGER NOT NULL DEFAULT {default}"
-                    )
-                except sqlite3.OperationalError as e:
-                    if "duplicate column" not in str(e).lower():
-                        raise
-            # Verify columns exist before advancing version
-            cols = {r[1] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()}
-            if {"version", "transcript_version", "chat_version"}.issubset(cols):
-                conn.execute("UPDATE schema_version SET version = 5")
 
-        if current < 6:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS tool_runs (
-                    id TEXT PRIMARY KEY,
-                    task_id TEXT NOT NULL,
-                    tool_name TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    input_json TEXT NOT NULL,
-                    output_json TEXT,
-                    error_message TEXT,
-                    started_at TEXT NOT NULL,
-                    finished_at TEXT,
-                    duration_ms INTEGER,
-                    state_before TEXT,
-                    state_after TEXT,
-                    attempt INTEGER DEFAULT 1
-                )
-            """)
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_tool_runs_task_id_started_at "
-                "ON tool_runs(task_id, started_at)"
-            )
-            conn.execute("UPDATE schema_version SET version = 6")
+def _id_type(engine: str) -> str:
+    return "VARCHAR(36)" if engine == "mysql" else "TEXT"
 
-        conn.commit()
-    finally:
-        conn.close()
+
+def _table_columns(conn, table_name: str, engine: str) -> set[str]:
+    if engine == "mysql":
+        rows = conn.fetchall(f"SHOW COLUMNS FROM {table_name}")
+        return {row["Field"] for row in rows}
+    rows = conn.fetchall(f"PRAGMA table_info({table_name})")
+    return {row["name"] for row in rows}
+
+
+def _add_missing_columns(conn, table_name: str, engine: str, columns: dict[str, str]) -> None:
+    existing = _table_columns(conn, table_name, engine)
+    for name, definition in columns.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {name} {definition}")
+
+
+def _ensure_index(conn, table_name: str, index_name: str, columns: str, engine: str) -> None:
+    if engine == "mysql":
+        row = conn.fetchone(
+            f"SHOW INDEX FROM {table_name} WHERE Key_name = ?",
+            (index_name,),
+        )
+        if row is None:
+            conn.execute(f"CREATE INDEX {index_name} ON {table_name}({columns})")
+        return
+    conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name}({columns})")
+
+
+def _ensure_tasks_table(conn, engine: str) -> None:
+    text_type = _text_type(engine)
+    short_text_type = _short_text_type(engine)
+    id_type = _id_type(engine)
+    config_default = "NOT NULL" if engine == "mysql" else "NOT NULL DEFAULT '{}'"
+    conn.execute(f"""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id {id_type} PRIMARY KEY,
+            status {short_text_type} NOT NULL DEFAULT 'pending',
+            stage {short_text_type},
+            video_path {text_type},
+            video_filename {text_type},
+            config_json {text_type} {config_default},
+            subtitle_segment_count INTEGER,
+            clips_json {text_type},
+            error_message {text_type},
+            failed_stage {short_text_type},
+            empty_clips_reason {text_type},
+            created_at {short_text_type} NOT NULL,
+            updated_at {short_text_type} NOT NULL,
+            started_at {short_text_type},
+            completed_at {short_text_type},
+            transcript_source {short_text_type},
+            transcript_modified_at {short_text_type},
+            chat_history_json {text_type},
+            chat_updated_at {short_text_type},
+            media_info_json {text_type},
+            version INTEGER NOT NULL DEFAULT 0,
+            transcript_version INTEGER NOT NULL DEFAULT 0,
+            chat_version INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    _add_missing_columns(
+        conn,
+        "tasks",
+        engine,
+        {
+            "transcript_source": short_text_type,
+            "transcript_modified_at": short_text_type,
+            "chat_history_json": text_type,
+            "chat_updated_at": short_text_type,
+            "media_info_json": text_type,
+            "version": "INTEGER NOT NULL DEFAULT 0",
+            "transcript_version": "INTEGER NOT NULL DEFAULT 0",
+            "chat_version": "INTEGER NOT NULL DEFAULT 0",
+        },
+    )
+
+
+def _ensure_tool_runs_table(conn, engine: str) -> None:
+    text_type = _text_type(engine)
+    short_text_type = _short_text_type(engine)
+    id_type = _id_type(engine)
+    conn.execute(f"""
+        CREATE TABLE IF NOT EXISTS tool_runs (
+            id {id_type} PRIMARY KEY,
+            task_id {id_type} NOT NULL,
+            tool_name {short_text_type} NOT NULL,
+            status {short_text_type} NOT NULL,
+            input_json {text_type} NOT NULL,
+            output_json {text_type},
+            error_message {text_type},
+            started_at {short_text_type} NOT NULL,
+            finished_at {short_text_type},
+            duration_ms INTEGER,
+            state_before {short_text_type},
+            state_after {short_text_type},
+            attempt INTEGER DEFAULT 1
+        )
+    """)
+    _add_missing_columns(
+        conn,
+        "tool_runs",
+        engine,
+        {
+            "output_json": text_type,
+            "error_message": text_type,
+            "finished_at": short_text_type,
+            "duration_ms": "INTEGER",
+            "state_before": short_text_type,
+            "state_after": short_text_type,
+            "attempt": "INTEGER DEFAULT 1",
+        },
+    )
+    _ensure_index(
+        conn,
+        "tool_runs",
+        "idx_tool_runs_task_id_started_at",
+        "task_id, started_at",
+        engine,
+    )
 
 
 @_with_retry
@@ -216,18 +264,14 @@ def create_task(video_path: str, video_filename: str, config: dict) -> str:
         k: v for k, v in config.items() if k not in ("llm_api_key", "asr_api_key")
     }
 
-    conn = _get_conn()
-    try:
+    with _database().transaction() as conn:
         conn.execute(
             """INSERT INTO tasks (id, status, video_path, video_filename,
                config_json, created_at, updated_at)
                VALUES (?, 'pending', ?, ?, ?, ?, ?)""",
             (task_id, video_path, video_filename, json.dumps(clean_config), now, now),
         )
-        conn.commit()
         return task_id
-    finally:
-        conn.close()
 
 
 @_with_retry
@@ -259,8 +303,7 @@ def update_task_status(task_id: str, status: str, **kwargs):
     set_clause = ", ".join(f"{k} = ?" for k in fields)
     values = list(fields.values()) + [task_id]
 
-    conn = _get_conn()
-    try:
+    with _database().transaction() as conn:
         cursor = conn.execute(f"UPDATE tasks SET {set_clause} WHERE id = ?", values)
         if cursor.rowcount == 0:
             logging.warning(
@@ -268,22 +311,13 @@ def update_task_status(task_id: str, status: str, **kwargs):
                 task_id,
             )
             return False
-        conn.commit()
         return True
-    finally:
-        conn.close()
 
 
 @_with_retry
 def get_task(task_id: str) -> dict | None:
-    conn = _get_conn()
-    try:
-        row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
-        if row is None:
-            return None
-        return dict(row)
-    finally:
-        conn.close()
+    with _database().connect() as conn:
+        return conn.fetchone("SELECT * FROM tasks WHERE id = ?", (task_id,))
 
 
 @_with_retry
@@ -293,69 +327,52 @@ def update_chat_history(task_id: str, chat_history_json: str, chat_updated_at: s
     This avoids clobbering status when the worker and chat concurrently
     update the same task row (e.g., during async export).
     """
-    conn = _get_conn()
-    try:
+    with _database().transaction() as conn:
         conn.execute(
             "UPDATE tasks SET chat_history_json = ?, chat_updated_at = ? WHERE id = ?",
             (chat_history_json, chat_updated_at, task_id),
         )
-        conn.commit()
-    finally:
-        conn.close()
 
 
 @_with_retry
 def delete_task(task_id: str) -> bool:
-    conn = _get_conn()
-    try:
+    with _database().transaction() as conn:
         cursor = conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
-        deleted = cursor.rowcount > 0
-        conn.commit()
-        return deleted
-    finally:
-        conn.close()
+        return cursor.rowcount > 0
 
 
 @_with_retry
 def get_expired_tasks(retention_days: int) -> list[dict]:
-    conn = _get_conn()
-    try:
-        rows = conn.execute(
+    with _database().connect() as conn:
+        rows = conn.fetchall(
             "SELECT * FROM tasks WHERE status IN ('done', 'error') AND created_at < ?",
             (_days_ago(retention_days),),
-        ).fetchall()
-        rows += conn.execute(
+        )
+        rows += conn.fetchall(
             "SELECT * FROM tasks WHERE status IN ('pending', 'queued') "
             "AND created_at < ? AND updated_at < ?",
             (_days_ago(retention_days), _days_ago(retention_days)),
-        ).fetchall()
+        )
         # Stagnant processing tasks (worker crash, deletion race, etc.)
-        rows += conn.execute(
+        rows += conn.fetchall(
             "SELECT * FROM tasks WHERE status = 'processing' AND updated_at < ?",
             (_days_ago(retention_days),),
-        ).fetchall()
-        return [dict(r) for r in rows]
-    finally:
-        conn.close()
+        )
+        return rows
 
 
 @_with_retry
 def list_tasks(limit: int = 50, after: str | None = None) -> list[dict]:
-    conn = _get_conn()
-    try:
+    with _database().connect() as conn:
         if after:
-            rows = conn.execute(
+            return conn.fetchall(
                 "SELECT * FROM tasks WHERE created_at < ? ORDER BY created_at DESC LIMIT ?",
                 (after, limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-        return [dict(r) for r in rows]
-    finally:
-        conn.close()
+            )
+        return conn.fetchall(
+            "SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        )
 
 
 @_with_retry
@@ -370,22 +387,14 @@ def update_task_if_version(task_id: str, expected_version: int, **fields) -> dic
 
     values = list(fields.values()) + [_now(), task_id, expected_version]
 
-    conn = _get_conn()
-    try:
+    with _database().transaction() as conn:
         cursor = conn.execute(
             f"UPDATE tasks SET {', '.join(set_parts)} WHERE id = ? AND version = ?",
             values,
         )
         if cursor.rowcount == 0:
-            # Check if task exists at all (distinguish missing from version conflict)
-            exists = conn.execute(
-                "SELECT 1 FROM tasks WHERE id = ?", (task_id,)
-            ).fetchone()
             return None  # None = conflict or missing; caller checks get_task
-        conn.commit()
-        return get_task(task_id)
-    finally:
-        conn.close()
+    return get_task(task_id)
 
 
 @_with_retry
@@ -393,18 +402,14 @@ def update_chat_history_if_version(
     task_id: str, expected_chat_version: int, chat_history_json: str, chat_updated_at: str
 ) -> bool:
     """Conditional chat history update. Returns True on success, False on conflict."""
-    conn = _get_conn()
-    try:
+    with _database().transaction() as conn:
         cursor = conn.execute(
             """UPDATE tasks
                SET chat_history_json = ?, chat_updated_at = ?, chat_version = chat_version + 1
                WHERE id = ? AND chat_version = ?""",
             (chat_history_json, chat_updated_at, task_id, expected_chat_version),
         )
-        conn.commit()
         return cursor.rowcount > 0
-    finally:
-        conn.close()
 
 
 @_with_retry
@@ -435,16 +440,12 @@ def bump_transcript_version_if_current(
 
     values.extend([task_id, expected_transcript_version])
 
-    conn = _get_conn()
-    try:
+    with _database().transaction() as conn:
         cursor = conn.execute(
             f"UPDATE tasks SET {', '.join(set_parts)} WHERE id = ? AND transcript_version = ?",
             values,
         )
-        conn.commit()
         return cursor.rowcount > 0
-    finally:
-        conn.close()
 
 
 _SENSITIVE_FIELD_NAMES = {
@@ -502,23 +503,28 @@ def _finish_tool_run(
     finished_at = _now()
     output_json = _to_sanitized_json(output_data) if output_data is not None else None
     error_text = _redact_sensitive_text(error_message or "") if error_message else None
-    conn = _get_conn()
     try:
-        cursor = conn.execute(
-            """UPDATE tool_runs
-               SET status = ?, output_json = ?, error_message = ?,
-                   finished_at = ?, duration_ms = ?, state_after = ?
-               WHERE id = ?""",
-            (status, output_json, error_text, finished_at, duration_ms, state_after, run_id),
-        )
-        if cursor.rowcount == 0:
-            raise RuntimeError(f"tool_run not found: {run_id}")
-        conn.commit()
+        with _database().transaction() as conn:
+            cursor = conn.execute(
+                """UPDATE tool_runs
+                   SET status = ?, output_json = ?, error_message = ?,
+                       finished_at = ?, duration_ms = ?, state_after = ?
+                   WHERE id = ?""",
+                (
+                    status,
+                    output_json,
+                    error_text,
+                    finished_at,
+                    duration_ms,
+                    state_after,
+                    run_id,
+                ),
+            )
+            if cursor.rowcount == 0:
+                raise RuntimeError(f"tool_run not found: {run_id}")
     except Exception:
         logging.exception("tool_run_finish_failed run_id=%s status=%s", run_id, status)
         raise
-    finally:
-        conn.close()
 
 
 @_with_retry
@@ -532,30 +538,27 @@ def create_tool_run(
 ) -> str:
     run_id = str(uuid.uuid4())
     now = _now()
-    conn = _get_conn()
     try:
-        conn.execute(
-            """INSERT INTO tool_runs (
-                   id, task_id, tool_name, status, input_json,
-                   started_at, state_before, attempt
-               ) VALUES (?, ?, ?, 'running', ?, ?, ?, ?)""",
-            (
-                run_id,
-                task_id,
-                tool_name,
-                _to_sanitized_json(input_data),
-                now,
-                state_before,
-                attempt,
-            ),
-        )
-        conn.commit()
-        return run_id
+        with _database().transaction() as conn:
+            conn.execute(
+                """INSERT INTO tool_runs (
+                       id, task_id, tool_name, status, input_json,
+                       started_at, state_before, attempt
+                   ) VALUES (?, ?, ?, 'running', ?, ?, ?, ?)""",
+                (
+                    run_id,
+                    task_id,
+                    tool_name,
+                    _to_sanitized_json(input_data),
+                    now,
+                    state_before,
+                    attempt,
+                ),
+            )
+            return run_id
     except Exception:
         logging.exception("tool_run_create_failed task_id=%s tool=%s", task_id, tool_name)
         raise
-    finally:
-        conn.close()
 
 
 @_with_retry
@@ -611,15 +614,11 @@ def finish_tool_run_rejected(
 
 @_with_retry
 def list_tool_runs(task_id: str) -> list[dict]:
-    conn = _get_conn()
-    try:
-        rows = conn.execute(
+    with _database().connect() as conn:
+        return conn.fetchall(
             "SELECT * FROM tool_runs WHERE task_id = ? ORDER BY started_at ASC, id ASC",
             (task_id,),
-        ).fetchall()
-        return [dict(row) for row in rows]
-    finally:
-        conn.close()
+        )
 
 
 def _derive_clip_id(clip: dict) -> str:

@@ -940,7 +940,7 @@ class TestPatchTranscript:
             with patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)):
                 response = client.patch(
                     f"/api/tasks/{task_id}/transcript",
-                    json={"segments": new_segments},
+                    json={"segments": new_segments, "base_transcript_version": 0},
                 )
 
             assert response.status_code == 200
@@ -989,7 +989,7 @@ class TestPatchTranscript:
             with patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)):
                 response = client.patch(
                     f"/api/tasks/{task_id}/transcript",
-                    json={"segments": new_segments},
+                    json={"segments": new_segments, "base_transcript_version": 0},
                 )
 
             assert response.status_code == 200
@@ -1023,7 +1023,8 @@ class TestPatchTranscript:
             response = client.patch(
                 f"/api/tasks/{task_id}/transcript",
                 json={
-                    "segments": [{"start_time_s": 1.0, "end_time_s": 3.0, "text": "X"}]
+                    "segments": [{"start_time_s": 1.0, "end_time_s": 3.0, "text": "X"}],
+                    "base_transcript_version": 0,
                 },
             )
             assert response.status_code == 409
@@ -1042,7 +1043,8 @@ class TestPatchTranscript:
             response = client.patch(
                 f"/api/tasks/{task_id}/transcript",
                 json={
-                    "segments": [{"start_time_s": 1.0, "end_time_s": 3.0, "text": "X"}]
+                    "segments": [{"start_time_s": 1.0, "end_time_s": 3.0, "text": "X"}],
+                    "base_transcript_version": 0,
                 },
             )
             assert response.status_code == 409
@@ -1058,7 +1060,7 @@ class TestPatchTranscript:
             client = _make_client()
             response = client.patch(
                 "/api/tasks/not-a-uuid/transcript",
-                json={"segments": []},
+                json={"segments": [], "base_transcript_version": 0},
             )
             assert response.status_code == 400
         finally:
@@ -1074,7 +1076,8 @@ class TestPatchTranscript:
             response = client.patch(
                 "/api/tasks/00000000-0000-0000-0000-000000000099/transcript",
                 json={
-                    "segments": [{"start_time_s": 1.0, "end_time_s": 2.0, "text": "x"}]
+                    "segments": [{"start_time_s": 1.0, "end_time_s": 2.0, "text": "x"}],
+                    "base_transcript_version": 0,
                 },
             )
             assert response.status_code == 404
@@ -1098,7 +1101,8 @@ class TestPatchTranscript:
                     json={
                         "segments": [
                             {"start_time_s": 1.0, "end_time_s": 3.0, "text": ""},
-                        ]
+                        ],
+                        "base_transcript_version": 0,
                     },
                 )
 
@@ -1127,7 +1131,8 @@ class TestPatchTranscript:
                     json={
                         "segments": [
                             {"start_time_s": 5.0, "end_time_s": 3.0, "text": "bad"},
-                        ]
+                        ],
+                        "base_transcript_version": 0,
                     },
                 )
 
@@ -1156,7 +1161,8 @@ class TestPatchTranscript:
                         "segments": [
                             {"start_time_s": 3.0, "end_time_s": 5.0, "text": "second"},
                             {"start_time_s": 1.0, "end_time_s": 4.0, "text": "first"},
-                        ]
+                        ],
+                        "base_transcript_version": 0,
                     },
                 )
 
@@ -1185,7 +1191,8 @@ class TestPatchTranscript:
                     json={
                         "segments": [
                             {"start_time_s": -1.0, "end_time_s": 3.0, "text": "bad"},
-                        ]
+                        ],
+                        "base_transcript_version": 0,
                     },
                 )
 
@@ -1217,7 +1224,8 @@ class TestPatchTranscript:
                                 "end_time_s": 3.0,
                                 "text": "x" * 1001,
                             },
-                        ]
+                        ],
+                        "base_transcript_version": 0,
                     },
                 )
 
@@ -1251,7 +1259,8 @@ class TestPatchTranscript:
                                 "end_time_s": 3.0,
                                 "text": "你好世界",
                             },
-                        ]
+                        ],
+                        "base_transcript_version": 0,
                     },
                 )
 
@@ -1301,6 +1310,7 @@ class TestPatchTranscript:
                             },
                         ],
                         "after_save": "regenerate_clip_subtitles",
+                        "base_transcript_version": 0,
                     },
                 )
 
@@ -1341,6 +1351,7 @@ class TestPatchTranscript:
                             {"start_time_s": 1.0, "end_time_s": 3.0, "text": "fresh"},
                         ],
                         "after_save": "save_only",
+                        "base_transcript_version": 0,
                     },
                 )
 
@@ -1378,6 +1389,7 @@ class TestPatchTranscript:
                             {"start_time_s": 1.0, "end_time_s": 3.0, "text": "fresh"},
                         ],
                         "after_save": "regenerate_clip_subtitles",
+                        "base_transcript_version": 0,
                     },
                 )
 
@@ -1403,12 +1415,12 @@ class TestPatchTranscript:
             original = [{"start_time_s": 1.0, "end_time_s": 3.0, "text": "old"}]
             tmp_output = self._setup_transcript(task_id, original)
             _insert_task_full(db_path, task_id)
-            from app.models.task import update_task_status
+            from app.models.task import bump_transcript_version_if_current
 
-            update_task_status(
+            assert bump_transcript_version_if_current(
                 task_id,
-                "done",
-                transcript_modified_at="2026-05-28T12:00:00+00:00",
+                0,
+                "2026-05-28T12:00:00+00:00",
             )
 
             client = _make_client()
@@ -1419,12 +1431,12 @@ class TestPatchTranscript:
                         "segments": [
                             {"start_time_s": 1.0, "end_time_s": 3.0, "text": "new"},
                         ],
-                        "base_transcript_modified_at": "2026-05-28T11:59:00+00:00",
+                        "base_transcript_version": 0,
                     },
                 )
 
             assert response.status_code == 409
-            assert "modified" in response.json()["detail"].lower()
+            assert "版本" in response.json()["detail"]
         finally:
             os.unlink(db_path)
             import shutil
@@ -1460,6 +1472,7 @@ class TestPatchTranscript:
                         "after_save": "reanalyze",
                         "llm_api_key": "sk-test",
                         "asr_api_key": "",
+                        "base_transcript_version": 0,
                     },
                 )
 
@@ -1505,6 +1518,7 @@ class TestPatchTranscript:
                             {"start_time_s": 1.0, "end_time_s": 3.0, "text": "fresh"},
                         ],
                         "after_save": "reanalyze",
+                        "base_transcript_version": 0,
                     },
                 )
 
@@ -1547,7 +1561,7 @@ class TestPatchTranscript:
             with patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)):
                 response = client.patch(
                     f"/api/tasks/{task_id}/transcript",
-                    json={"segments": new_segments},
+                    json={"segments": new_segments, "base_transcript_version": 0},
                 )
 
             assert response.status_code == 200, (

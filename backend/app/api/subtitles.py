@@ -142,7 +142,7 @@ async def patch_transcript(task_id: str, body: dict):
 
     try:
         with open(transcript_path, encoding="utf-8") as f:
-            existing = json.load(f)
+            json.load(f)
     except json.JSONDecodeError:
         raise HTTPException(500, detail="字幕文件格式错误")
 
@@ -159,11 +159,8 @@ async def patch_transcript(task_id: str, body: dict):
         raise HTTPException(422, detail="base_transcript_version 必须是非负整数")
 
     # Reanalyze requires a fresh LLM API key
-    if after_save == "reanalyze":
-        if not body.get("llm_api_key"):
-            raise HTTPException(
-                422, detail="缺少 llm_api_key，重新分析需要提供新的 API key"
-            )
+    if after_save == "reanalyze" and not body.get("llm_api_key"):
+        raise HTTPException(422, detail="缺少 llm_api_key，重新分析需要提供新的 API key")
 
     from app.utils import utcnow_iso
 

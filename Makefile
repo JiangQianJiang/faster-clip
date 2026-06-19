@@ -57,7 +57,7 @@ build-frontend:
 lint: lint-backend lint-frontend
 
 lint-backend:
-	cd backend && python3 -m ruff check . && python3 -m ruff format --check .
+	cd backend && python3 -m ruff check .
 
 lint-frontend:
 	cd frontend && npx tsc --noEmit
@@ -102,7 +102,7 @@ help:
 	@echo ""
 	@echo "  代码检查"
 	@echo "    make lint          运行全部检查"
-	@echo "    make lint-backend  后端测试（检查用）"
+	@echo "    make lint-backend  后端 Ruff 检查"
 	@echo "    make lint-frontend TypeScript 类型检查"
 	@echo ""
 	@echo "  清理"

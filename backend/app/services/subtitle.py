@@ -430,8 +430,6 @@ def get_clip_subtitle_segments(
             ]
         if clipped_words:
             text = "".join(str(w["text"]) for w in clipped_words)
-        elif abs_start > seg["start_time_s"] or abs_end < seg["end_time_s"]:
-            text = _clip_text_by_time_ratio(seg, abs_start, abs_end)
         else:
             text = seg["text"]
         if not str(text).strip():

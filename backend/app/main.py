@@ -3,7 +3,7 @@ import re
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -150,13 +150,16 @@ async def unauthorized_handler(request: Request, exc: Exception):
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc: Exception):
-    return _secure_response(404, {"code": "NOT_FOUND", "detail": "资源不存在"})
+    detail = exc.detail if isinstance(exc, HTTPException) else "资源不存在"
+    return _secure_response(404, {"code": "NOT_FOUND", "detail": detail})
 
 
 @app.exception_handler(422)
 async def validation_handler(request: Request, exc: Exception):
     detail = "请求参数无效"
-    if hasattr(exc, "errors"):
+    if isinstance(exc, HTTPException):
+        detail = exc.detail
+    elif hasattr(exc, "errors"):
         detail = str(exc.errors()) if callable(exc.errors) else str(getattr(exc, "errors", detail))
     return _secure_response(422, {"code": "VALIDATION_ERROR", "detail": detail})
 

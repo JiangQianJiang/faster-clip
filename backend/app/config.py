@@ -1,6 +1,10 @@
 import os
 
 
+def _is_pytest_running() -> bool:
+    return os.getenv("PYTEST_RUNNING", "").lower() == "true"
+
+
 class Settings:
     app_name: str = "live-clipper"
     debug: bool = os.getenv("DEBUG", "false").lower() == "true"
@@ -8,7 +12,16 @@ class Settings:
     # Redis
     redis_url: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
-    # SQLite
+    # Database
+    # MySQL is the production/default path. SQLite is kept for local/test fallback.
+    _default_database_engine = "sqlite" if _is_pytest_running() else "mysql"
+    database_engine: str = os.getenv("DATABASE_ENGINE", _default_database_engine).lower()
+    database_url: str = os.getenv(
+        "DATABASE_URL",
+        "sqlite:///data/live-clipper.db"
+        if database_engine == "sqlite"
+        else "mysql+pymysql://fasterclip:password@mysql:3306/fasterclip",
+    )
     database_path: str = os.getenv("DATABASE_PATH", "data/live-clipper.db")
 
     # Upload limits
@@ -46,9 +59,14 @@ def _validate_startup_config() -> None:
         return
     STARTUP_VALIDATION_DONE = True
 
-    is_test = os.getenv("PYTEST_RUNNING", "").lower() == "true"
+    is_test = _is_pytest_running()
 
     errors = []
+    if settings.database_engine not in ("mysql", "sqlite"):
+        errors.append(
+            f'不支持的 DATABASE_ENGINE: "{settings.database_engine}"，当前支持: mysql, sqlite'
+        )
+
     if not settings.default_asr_provider:
         if not is_test:
             errors.append(
