@@ -1,7 +1,5 @@
 """Security headers middleware for CSP and other response headers."""
 
-import os
-
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
@@ -40,8 +38,9 @@ _SECURITY_HEADERS = {
 
 def _get_csp() -> str:
     """Return CSP based on environment."""
-    is_dev = os.getenv("DEBUG", "false").lower() == "true"
-    return _CSP_DEV if is_dev else _CSP_PROD
+    from app.config import settings
+
+    return _CSP_DEV if settings.debug else _CSP_PROD
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

@@ -449,10 +449,14 @@ def bump_transcript_version_if_current(
 
 
 _SENSITIVE_FIELD_NAMES = {
+    "api_key",
+    "apikey",
+    "api-key",
     "llm_api_key",
     "asr_api_key",
     "_runtime_api_key",
     "authorization",
+    "auth_header",
     "access_token",
 }
 
@@ -478,7 +482,12 @@ def _sanitize_tool_payload(value):
         sanitized = {}
         for key, item in value.items():
             key_text = str(key)
-            if key_text.lower() in _SENSITIVE_FIELD_NAMES:
+            key_lower = key_text.lower()
+            if (
+                key_lower in _SENSITIVE_FIELD_NAMES
+                or key_lower.endswith("_api_key")
+                or "token" in key_lower
+            ):
                 continue
             sanitized[_redact_sensitive_text(key_text)] = _sanitize_tool_payload(item)
         return sanitized

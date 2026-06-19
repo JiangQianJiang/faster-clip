@@ -33,9 +33,10 @@ def _resolve_preset_path() -> str:
     2. Walk upward from CWD looking for ``data/presets/subtitle_styles.json``.
     3. Walk upward from this file's directory (covers ``backend/`` CWD).
     """
-    env_path = os.environ.get("PRESETS_PATH", "")
-    if env_path:
-        return env_path
+    from app.config import settings
+
+    if settings.presets_path:
+        return settings.presets_path
 
     filename = os.path.join("data", "presets", "subtitle_styles.json")
 

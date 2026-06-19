@@ -202,7 +202,9 @@ def setup_json_logging() -> None:
     - ``LOG_FORMAT=text`` (or unset without Docker): colorized text to stdout.
     - Unrecognized value: falls back to JSON with a warning.
     """
-    log_format = os.environ.get("LOG_FORMAT", "").strip().lower()
+    from app.config import settings
+
+    log_format = settings.log_format
     in_docker = os.path.exists("/.dockerenv")
 
     if not log_format:

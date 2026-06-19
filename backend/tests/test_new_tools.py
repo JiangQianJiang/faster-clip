@@ -338,6 +338,12 @@ def test_regenerate_subtitles_fails_without_current_transcript(monkeypatch, tmp_
 def test_run_asr_preserves_raw_transcript_before_line_breaking(monkeypatch, tmp_path):
     """ASR reruns should not rewrite text while creating display transcript."""
     output_dir = _use_temp_task_store(monkeypatch, tmp_path)
+    settings_path = tmp_path / "settings.json"
+    settings_path.write_text('{"asr": {"api_key": "global-asr-secret"}}', encoding="utf-8")
+    monkeypatch.setenv("APP_SETTINGS_PATH", str(settings_path))
+    import app.config
+
+    monkeypatch.setattr(app.config.settings, "asr_api_key", "global-asr-secret")
     video_path = tmp_path / "video.mp4"
     audio_path = tmp_path / "audio.wav"
     video_path.write_bytes(b"fake video")
@@ -348,19 +354,24 @@ def test_run_asr_preserves_raw_transcript_before_line_breaking(monkeypatch, tmp_
     import app.services.asr as asr_service
 
     monkeypatch.setattr(asr_service, "extract_audio", lambda _path: str(audio_path))
+    captured = {}
+
+    def fake_transcribe(*_args, **kwargs):
+        captured.update(kwargs)
+        return [{"start_time_s": 0.0, "end_time_s": 5.0, "text": raw_text}]
+
     monkeypatch.setattr(
         asr_service,
         "transcribe",
-        lambda *_args, **_kwargs: [
-            {"start_time_s": 0.0, "end_time_s": 5.0, "text": raw_text}
-        ],
+        fake_transcribe,
     )
 
     from app.tools.user.run_asr import _run_asr_user
 
-    result = asyncio.run(_run_asr_user.execute(task_id=task_id, api_key="sk-test"))
+    result = asyncio.run(_run_asr_user.execute(task_id=task_id))
 
     assert result.success is True
+    assert captured["api_key"] == "global-asr-secret"
     raw_segments = json.loads(
         (output_dir / task_id / "transcript.raw.json").read_text(encoding="utf-8")
     )
@@ -373,6 +384,26 @@ def test_run_asr_preserves_raw_transcript_before_line_breaking(monkeypatch, tmp_
     assert "那个那个" in display_text
 
 
+def test_run_asr_requires_server_api_settings(monkeypatch, tmp_path):
+    output_dir = _use_temp_task_store(monkeypatch, tmp_path)
+    monkeypatch.setenv("APP_SETTINGS_PATH", str(tmp_path / "missing-settings.json"))
+    import app.config
+
+    monkeypatch.setattr(app.config.settings, "asr_api_key", "")
+    video_path = tmp_path / "video.mp4"
+    video_path.write_bytes(b"fake video")
+    task_id = _make_task(video_path=str(video_path))
+
+    from app.tools.user.run_asr import _run_asr_user
+
+    result = asyncio.run(_run_asr_user.execute(task_id=task_id))
+
+    assert result.success is False
+    assert result.error == "No global ASR API key configured"
+    assert "服务端" in result.user_message
+    assert not (output_dir / task_id / "transcript.json").exists()
+
+
 def test_subtitle_tool_schemas_separate_rebuild_from_retranscribe():
     """LLM-facing tool descriptions should not conflate rebuild and ASR."""
     from app.tools import get_tool
@@ -383,4 +414,5 @@ def test_subtitle_tool_schemas_separate_rebuild_from_retranscribe():
     assert regenerate is not None
     assert run_asr is not None
     assert "Does not call ASR" in regenerate.description
-    assert "requires an ASR API key" in run_asr.description
+    assert "server API settings" in run_asr.description
+    assert "api_key" not in run_asr.parameters["properties"]

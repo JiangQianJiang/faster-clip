@@ -1,7 +1,6 @@
 """Rate limiting middleware using Redis sliding-window counters."""
 
 import logging
-import os
 import time
 
 import redis
@@ -11,22 +10,27 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 _logger = logging.getLogger("app.rate_limit")
 
-# Default rate limit configuration (all overrideable via env vars)
-_DEFAULT_LIMITS = {
-    "auth_fail": int(os.getenv("RATE_LIMIT_AUTH_FAIL", "10")),       # per IP per minute
-    "upload": int(os.getenv("RATE_LIMIT_UPLOAD", "5")),              # per token per minute
-    "chat": int(os.getenv("RATE_LIMIT_CHAT", "20")),                 # per token per minute
-    "other": int(os.getenv("RATE_LIMIT_OTHER", "120")),              # per token per minute
-}
-
 _WINDOW_SECONDS = 60  # 1-minute sliding window
+
+
+def _default_limits() -> dict[str, int]:
+    from app.config import settings
+
+    return {
+        "auth_fail": settings.rate_limit_auth_fail,
+        "upload": settings.rate_limit_upload,
+        "chat": settings.rate_limit_chat,
+        "other": settings.rate_limit_other,
+    }
 
 
 def _get_redis() -> redis.Redis | None:
     """Get Redis connection. Returns None if Redis is unavailable."""
+    from app.config import settings
+
     try:
         r = redis.Redis.from_url(
-            os.getenv("REDIS_URL", "redis://redis:6379/0"),
+            settings.redis_url,
             socket_connect_timeout=2,
             socket_timeout=2,
         )
@@ -125,15 +129,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if path == "/api/tasks" and request.method == "POST":
             category = "upload"
             identifier = _get_token_key(request)
-            max_req = _DEFAULT_LIMITS["upload"]
+            max_req = _default_limits()["upload"]
         elif path.endswith("/chat"):
             category = "chat"
             identifier = _get_token_key(request)
-            max_req = _DEFAULT_LIMITS["chat"]
+            max_req = _default_limits()["chat"]
         else:
             category = "other"
             identifier = _get_token_key(request)
-            max_req = _DEFAULT_LIMITS["other"]
+            max_req = _default_limits()["other"]
 
         allowed, retry_after = _check_limit(r, category, identifier, max_req)
 

@@ -18,8 +18,7 @@ class RunASRUser(Tool):
     name = "run_asr"
     description = (
         "Re-run automatic speech recognition on the video's audio. This retranscribes "
-        "speech from scratch and requires an ASR API key, either stored in the task "
-        "or provided as input. Use only when the user asks to re-recognize audio, "
+        "speech from scratch using the server API settings. Use only when the user asks to re-recognize audio, "
         "re-transcribe speech, use a different ASR model/provider, or fix poor speech "
         "recognition quality. Do not use for rebuilding/reformatting existing "
         "subtitles; use regenerate_subtitles for that no-API local action. "
@@ -35,10 +34,6 @@ class RunASRUser(Tool):
         "type": "object",
         "properties": {
             "task_id": {"type": "string", "description": "Task UUID"},
-            "api_key": {
-                "type": "string",
-                "description": "ASR API key required for retranscription (optional only when the task already stores one)",
-            },
             "model": {
                 "type": "string",
                 "description": "ASR model name (optional — e.g. 'gpt-4o-mini-transcribe', 'qwen3-asr-flash-filetrans')",
@@ -58,7 +53,6 @@ class RunASRUser(Tool):
     async def execute(
         self,
         task_id: str,
-        api_key: str = "",
         model: str = "",
         provider: str = "",
         base_url: str = "",
@@ -102,35 +96,26 @@ class RunASRUser(Tool):
             resolved_model = model
         elif config.get("asr_model"):
             resolved_model = config["asr_model"]
+        elif settings.asr_model:
+            resolved_model = settings.asr_model
         elif resolved_provider == "qwen":
             resolved_model = "qwen3-asr-flash-filetrans"
         else:
             resolved_model = "whisper-1"
 
-        # Resolve API key: override > config (decrypted)
-        resolved_api_key = api_key
-        if not resolved_api_key:
-            from app.crypto import decrypt_api_key
+        # Resolve API key from server-side API settings only.
+        from app.services.api_settings import get_global_asr_api_key
 
-            encrypted_key = config.get("asr_api_key", "")
-            if encrypted_key:
-                try:
-                    resolved_api_key = decrypt_api_key(encrypted_key)
-                except Exception:
-                    return ToolResult(
-                        success=False,
-                        error="API key decryption failed",
-                        user_message="API Key 解密失败",
-                    )
+        resolved_api_key = get_global_asr_api_key()
         if not resolved_api_key:
             return ToolResult(
                 success=False,
-                error="No ASR API key configured",
-                user_message="未配置 ASR API Key，请在设置中配置或调用时提供",
+                error="No global ASR API key configured",
+                user_message="服务端未配置 ASR API Key，请在 setting 文件中配置 asr.api_key",
             )
 
         # Resolve base_url
-        resolved_base_url = base_url or config.get("asr_base_url", "") or None
+        resolved_base_url = base_url or config.get("asr_base_url", "") or settings.asr_base_url or None
 
         # Run ASR
         from app.services.asr import (

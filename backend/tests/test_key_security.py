@@ -344,18 +344,12 @@ def test_celery_accepts_only_json():
 # ── Key not persisted to SQLite ─────────────────────────────────────────────
 
 
-def test_settings_has_no_default_asr_key_attr():
-    """Settings class does not have an asr_api_key or llm_api_key attribute."""
+def test_settings_has_no_default_api_keys():
+    """Settings has API key fields, but no hard-coded default key values."""
     from app.config import settings
 
-    assert (
-        not hasattr(settings, "asr_api_key")
-        or settings.__class__.__name__ != "Settings"
-    )
-    assert (
-        not hasattr(settings, "llm_api_key")
-        or settings.__class__.__name__ != "Settings"
-    )
+    assert settings.asr_api_key == ""
+    assert settings.llm_api_key == ""
 
 
 # ── AC-2: Request lifecycle task_id cleanup ──────────────────────────────────

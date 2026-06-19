@@ -44,10 +44,12 @@ def test_tool_runs_lifecycle_redacts_sensitive_values(tmp_path, monkeypatch):
         tool_name="fake_tool",
         input_data={
             "safe": "value",
+            "api_key": "dashscope-secret-value",
+            "provider_api_key": "provider-secret-value",
             "_runtime_api_key": "sk-ant-test-secret",
             "Authorization": "Bearer token sk-test-secret",
             "env": "ACCESS_TOKEN = supersecret123",
-            "nested": {"asr_api_key": "sk-nested-secret"},
+            "nested": {"asr_api_key": "sk-nested-secret", "custom_token": "nested-token-value"},
         },
         state_before="transcript_ready",
     )
@@ -65,8 +67,13 @@ def test_tool_runs_lifecycle_redacts_sensitive_values(tmp_path, monkeypatch):
     assert "sk-ant-test-secret" not in serialized
     assert "sk-test-secret" not in serialized
     assert "sk-nested-secret" not in serialized
+    assert "dashscope-secret-value" not in serialized
+    assert "provider-secret-value" not in serialized
+    assert "nested-token-value" not in serialized
     assert "sk-ant-output-secret" not in serialized
     assert "supersecret123" not in serialized
+    assert "api_key" not in success_run["input_json"]
+    assert "provider_api_key" not in success_run["input_json"]
     assert "_runtime_api_key" not in success_run["input_json"]
     assert "Authorization" not in success_run["input_json"]
 
@@ -267,6 +274,52 @@ def test_workflow_runtime_advances_state_after_success(tmp_path, monkeypatch):
     assert new_state == "clips_ready"
     updated = get_task(task_id)
     assert updated["stage"] == "clips_ready"
+
+
+def test_workflow_runtime_done_with_transcript_is_not_exported(tmp_path, monkeypatch):
+    task_id = _make_task(tmp_path, monkeypatch)
+
+    from app.models.task import get_task
+    from app.services.workflow_runtime import WorkflowRuntime
+    from app.tools import get_tool
+
+    runtime = WorkflowRuntime()
+    task = get_task(task_id)
+
+    assert runtime.get_task_state(task) == "transcript_ready"
+    allowed, reason = runtime.validate_tool_call(task, get_tool("get_export_progress"))
+    assert allowed is False
+    assert "get_export_progress" in reason
+
+
+def test_workflow_runtime_done_with_unexported_clips_is_clips_ready(tmp_path, monkeypatch):
+    task_id = _make_task(tmp_path, monkeypatch)
+    task_model.update_task_status(
+        task_id,
+        "done",
+        clips_json=json.dumps([{"start": 0, "end": 5, "title": "clip"}]),
+        subtitle_segment_count=1,
+    )
+
+    from app.models.task import get_task
+    from app.services.workflow_runtime import WorkflowRuntime
+
+    assert WorkflowRuntime.get_task_state(get_task(task_id)) == "clips_ready"
+
+
+def test_workflow_runtime_exported_requires_export_signal(tmp_path, monkeypatch):
+    task_id = _make_task(tmp_path, monkeypatch)
+    task_model.update_task_status(
+        task_id,
+        "done",
+        clips_json=json.dumps([{"status": "success", "filepath": "/tmp/export.mp4"}]),
+        subtitle_segment_count=1,
+    )
+
+    from app.models.task import get_task
+    from app.services.workflow_runtime import WorkflowRuntime
+
+    assert WorkflowRuntime.get_task_state(get_task(task_id)) == "exported"
 
 
 def test_workflow_runtime_preserves_async_export_processing_state(tmp_path, monkeypatch):

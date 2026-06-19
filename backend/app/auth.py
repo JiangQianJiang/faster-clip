@@ -1,7 +1,6 @@
 """Authentication middleware and verification endpoint."""
 
 import logging
-import os
 import secrets
 
 from fastapi import HTTPException, Request
@@ -22,13 +21,17 @@ _MIN_TOKEN_LENGTH = 32
 
 def get_access_token() -> str | None:
     """Return the configured access token, or None if not set."""
-    token = os.getenv("ACCESS_TOKEN", "")
+    from app.config import settings
+
+    token = settings.access_token
     return token if token else None
 
 
 def validate_access_token() -> None:
     """Validate ACCESS_TOKEN at startup. Raises SystemExit on failure."""
-    token = os.getenv("ACCESS_TOKEN", "")
+    from app.config import settings
+
+    token = settings.access_token
     if not token:
         raise SystemExit(
             "缺少必需的环境变量 ACCESS_TOKEN。"
@@ -43,14 +46,14 @@ def validate_access_token() -> None:
 
 def _rate_limit_auth_fail(client_ip: str) -> int | None:
     """Count auth failure. Returns Retry-After seconds if over limit, None if allowed."""
-    import os
-
     import redis
 
-    limit = int(os.getenv("RATE_LIMIT_AUTH_FAIL", "10"))
+    from app.config import settings
+
+    limit = settings.rate_limit_auth_fail
     try:
         r = redis.Redis.from_url(
-            os.getenv("REDIS_URL", "redis://redis:6379/0"),
+            settings.redis_url,
             socket_connect_timeout=1,
             socket_timeout=1,
         )
@@ -73,7 +76,9 @@ def verify_token(request: Request) -> bool:
     The query parameter fallback enables <video>, <img>, and <a> elements to
     authenticate when they cannot send custom HTTP headers.
     """
-    expected = os.getenv("ACCESS_TOKEN", "")
+    from app.config import settings
+
+    expected = settings.access_token
     if not expected:
         return False
 

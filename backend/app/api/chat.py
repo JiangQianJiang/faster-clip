@@ -15,12 +15,18 @@ def _get_llm_api_key(task_config: dict, request_body: dict) -> str:
     """Resolve LLM API key for chat.
 
     Priority:
-    1. Encrypted key in task config_json (tasks with API key stored at creation)
-    2. Plaintext key in request body (normal tasks where config_json has no key)
+    1. Global server settings file / env
+    2. Encrypted key in task config_json (legacy tasks)
+    3. Plaintext key in request body (legacy compatibility)
 
     Returns the plaintext key, or raises HTTPException if unavailable.
     """
+    from app.config import settings
     from app.crypto import decrypt_api_key
+
+    settings_key = (settings.llm_api_key or "").strip()
+    if settings_key:
+        return settings_key
 
     # Try encrypted key from task config first
     encrypted = task_config.get("llm_api_key", "")
@@ -39,7 +45,7 @@ def _get_llm_api_key(task_config: dict, request_body: dict) -> str:
 
     raise HTTPException(
         400,
-        detail="该任务缺少 LLM API Key。请在请求中提供 llm_api_key，或先在经典模式中配置。",
+        detail="服务端未配置 LLM API Key，请在 setting 文件中配置 llm.api_key。",
     )
 
 
@@ -68,11 +74,13 @@ async def chat_endpoint(task_id: str, request: Request):
 
     # Load LLM config from task
     config = json.loads(task.get("config_json") or "{}")
-    llm_base_url = config.get("llm_base_url", "")
-    llm_model = config.get("llm_model", "")
+    from app.config import settings
+
+    llm_base_url = config.get("llm_base_url", "") or settings.llm_base_url
+    llm_model = config.get("llm_model", "") or settings.llm_model
 
     if not llm_base_url or not llm_model:
-        raise HTTPException(400, detail="该任务缺少 LLM 配置，请先在经典模式中配置")
+        raise HTTPException(400, detail="服务端未配置 LLM base_url/model，请在 setting 文件中配置")
 
     # Resolve API key (from config or request body)
     llm_api_key = _get_llm_api_key(config, body)

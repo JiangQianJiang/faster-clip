@@ -56,10 +56,14 @@ KEY_PATTERNS = [
     re.compile(r"sk-[a-zA-Z0-9_-]+"),
 ]
 _SENSITIVE_HISTORY_FIELDS = {
+    "api_key",
+    "apikey",
+    "api-key",
     "llm_api_key",
     "asr_api_key",
     "_runtime_api_key",
     "authorization",
+    "auth_header",
     "access_token",
 }
 
@@ -80,11 +84,18 @@ def _redact_value(value):
     if isinstance(value, str):
         return _redact_keys(value)
     if isinstance(value, dict):
-        return {
-            _redact_keys(str(k)): _redact_value(v)
-            for k, v in value.items()
-            if str(k).lower() not in _SENSITIVE_HISTORY_FIELDS
-        }
+        redacted = {}
+        for key, item in value.items():
+            key_text = str(key)
+            key_lower = key_text.lower()
+            if (
+                key_lower in _SENSITIVE_HISTORY_FIELDS
+                or key_lower.endswith("_api_key")
+                or "token" in key_lower
+            ):
+                continue
+            redacted[_redact_keys(key_text)] = _redact_value(item)
+        return redacted
     if isinstance(value, list):
         return [_redact_value(i) for i in value]
     return value
@@ -402,7 +413,9 @@ class ChatService:
 
     def _trim_history(self, history: list[dict]) -> list[dict]:
         """Trim large tool results to stay within configurable char limit."""
-        max_chars = int(self._get_env("CHAT_TOOL_RESULT_MAX_CHARS", "4000"))
+        from app.config import settings
+
+        max_chars = settings.chat_tool_result_max_chars
         trimmed = []
         for msg in history:
             if msg.get("role") == "user" and isinstance(msg.get("content"), list):
@@ -416,11 +429,6 @@ class ChatService:
                 msg = {**msg, "content": new_content}
             trimmed.append(msg)
         return trimmed
-
-    @staticmethod
-    def _get_env(key: str, default: str) -> str:
-        import os
-        return os.getenv(key, default)
 
     async def _execute_tool_with_retry(
         self,

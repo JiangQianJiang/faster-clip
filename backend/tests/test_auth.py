@@ -7,9 +7,13 @@ from fastapi.testclient import TestClient
 @pytest.fixture(autouse=True)
 def set_test_token(monkeypatch):
     """Set a test ACCESS_TOKEN for all tests in this module."""
-    monkeypatch.setenv("ACCESS_TOKEN", "test-token-" + "x" * 20)  # >= 32 chars
+    token = "test-token-" + "x" * 20
+    monkeypatch.setenv("ACCESS_TOKEN", token)  # >= 32 chars
     monkeypatch.setenv("PYTEST_RUNNING", "true")
     # Do NOT import app until env is set
+    import app.config
+
+    monkeypatch.setattr(app.config.settings, "access_token", token)
     from app.main import app
     return app
 

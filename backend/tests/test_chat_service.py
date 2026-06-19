@@ -844,7 +844,7 @@ def test_failed_checkpoint_sets_task_error():
                 "llm_model": "claude",
             },
         )
-        update_task_status(task_id, "done")
+        update_task_status(task_id, "done", subtitle_segment_count=1)
 
         svc = ChatService(
             task_id=task_id,

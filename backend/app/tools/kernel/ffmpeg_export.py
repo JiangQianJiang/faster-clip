@@ -93,7 +93,9 @@ class FFmpegExport(Tool):
             duration = export_end - export_start
             output_path = os.path.join(output_dir, f"clip_{clip_index:03d}.mp4")
 
-            ffmpeg_timeout = int(os.environ.get("FFMPEG_TIMEOUT", "600"))
+            from app.config import settings
+
+            ffmpeg_timeout = settings.ffmpeg_timeout_seconds
 
             if burn_subtitle and segments:
                 # Build temporary subtitle filter

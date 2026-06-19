@@ -31,6 +31,7 @@ data/videos/
 data/output/
 data/*.db
 data/*.sqlite
+data/settings.json
 backend/data/
 *.db-shm
 *.db-wal

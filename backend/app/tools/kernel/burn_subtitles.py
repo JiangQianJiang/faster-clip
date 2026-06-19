@@ -81,7 +81,9 @@ class BurnSubtitles(Tool):
                 output_path,
             ]
 
-            ffmpeg_timeout = int(os.environ.get("FFMPEG_TIMEOUT", "600"))
+            from app.config import settings
+
+            ffmpeg_timeout = settings.ffmpeg_timeout_seconds
             result = subprocess.run(
                 cmd, capture_output=True, text=True, timeout=ffmpeg_timeout
             )

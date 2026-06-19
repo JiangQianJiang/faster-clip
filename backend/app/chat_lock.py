@@ -9,16 +9,22 @@ import redis
 
 _logger = logging.getLogger("app.chat_lock")
 
-# Default lock TTL (must be longer than max chat processing time)
-DEFAULT_LOCK_TTL = int(os.getenv("CHAT_LOCK_TTL", "300"))  # 5 minutes
-# Lease renewal interval (renew at half TTL)
-_RENEWAL_INTERVAL = DEFAULT_LOCK_TTL / 2
+def _lock_ttl() -> int:
+    from app.config import settings
+
+    return settings.chat_lock_ttl
+
+
+def _renewal_interval() -> float:
+    return _lock_ttl() / 2
 
 
 def _get_redis() -> redis.Redis:
     """Get Redis connection."""
+    from app.config import settings
+
     return redis.Redis.from_url(
-        os.getenv("REDIS_URL", "redis://redis:6379/0"),
+        settings.redis_url,
         socket_connect_timeout=3,
         socket_timeout=3,
     )
@@ -69,7 +75,7 @@ class ChatLock:
         try:
             # SET NX (only if not exists) with TTL
             acquired = self._redis.set(
-                self.lock_key, self.owner, nx=True, ex=DEFAULT_LOCK_TTL
+                self.lock_key, self.owner, nx=True, ex=_lock_ttl()
             )
             if acquired:
                 self._acquired = True
@@ -143,14 +149,14 @@ class ChatLock:
         """Periodically renew the lock lease."""
         try:
             while self._acquired and self._redis:
-                await asyncio.sleep(_RENEWAL_INTERVAL)
+                await asyncio.sleep(_renewal_interval())
                 if not self._acquired:
                     break
                 try:
                     renew_fn = self._redis.register_script(_RENEW_SCRIPT)
                     result = renew_fn(
                         keys=[self.lock_key],
-                        args=[self.owner, DEFAULT_LOCK_TTL],
+                        args=[self.owner, _lock_ttl()],
                     )
                     if not result:
                         _logger.warning(

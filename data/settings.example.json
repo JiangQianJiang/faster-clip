@@ -1,0 +1,48 @@
+{
+  "debug": false,
+  "redis": {
+    "url": "redis://redis:6379/0"
+  },
+  "database": {
+    "engine": "mysql",
+    "url": "mysql+pymysql://fasterclip:password@mysql:3306/fasterclip",
+    "path": "data/live-clipper.db"
+  },
+  "upload": {
+    "max_size_bytes": 2147483648,
+    "max_video_duration_seconds": 7200
+  },
+  "runtime": {
+    "ffmpeg_timeout_seconds": 600,
+    "fonts_dir": "/usr/share/fonts",
+    "retention_days": 7,
+    "chat_lock_ttl": 300,
+    "chat_tool_result_max_chars": 4000,
+    "presets_path": ""
+  },
+  "logging": {
+    "format": ""
+  },
+  "rate_limit": {
+    "auth_fail": 10,
+    "upload": 5,
+    "chat": 20,
+    "other": 120
+  },
+  "asr": {
+    "provider": "qwen",
+    "api_key": "",
+    "base_url": "",
+    "model": "qwen3-asr-flash-filetrans",
+    "qwen_poll_timeout_seconds": 600
+  },
+  "llm": {
+    "api_key": "",
+    "base_url": "",
+    "model": ""
+  },
+  "security": {
+    "access_token": "",
+    "api_key_encryption_key": ""
+  }
+}
