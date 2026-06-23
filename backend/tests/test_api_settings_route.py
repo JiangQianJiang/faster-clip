@@ -167,3 +167,33 @@ def test_put_api_settings_rejects_invalid_provider(monkeypatch, tmp_path):
     )
 
     assert response.status_code == 422
+
+
+def test_get_presets_returns_llm_and_asr_presets(monkeypatch, tmp_path):
+    import os as _os
+
+    presets_abs = _os.path.abspath(
+        _os.path.join(_os.path.dirname(__file__), "..", "..", "data", "presets", "api_providers.json")
+    )
+    monkeypatch.setenv("APP_PRESETS_PATH", presets_abs)
+    client, _settings_path = _client_with_settings_file(monkeypatch, tmp_path, {})
+
+    response = client.get("/api/settings/presets")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "llm" in body
+    assert "asr" in body
+    assert isinstance(body["llm"], list)
+    assert isinstance(body["asr"], list)
+    assert len(body["llm"]) >= 1
+    assert len(body["asr"]) >= 1
+    deepseek = next((p for p in body["llm"] if p["id"] == "deepseek"), None)
+    assert deepseek is not None
+    assert deepseek["base_url"] == "https://api.deepseek.com/anthropic"
+    assert deepseek["model"] == "deepseek-v4-pro"
+    qwen = next((p for p in body["asr"] if p["id"] == "qwen"), None)
+    assert qwen is not None
+    assert qwen["provider"] == "qwen"
+    assert qwen["base_url"] == "https://dashscope.aliyuncs.com"
+    assert qwen["model"] == "qwen3-asr-flash-filetrans"

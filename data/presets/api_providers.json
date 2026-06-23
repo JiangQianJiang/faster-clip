@@ -1,0 +1,19 @@
+{
+  "llm": [
+    {
+      "id": "deepseek",
+      "name": "DeepSeek",
+      "base_url": "https://api.deepseek.com/anthropic",
+      "model": "deepseek-v4-pro"
+    }
+  ],
+  "asr": [
+    {
+      "id": "qwen",
+      "name": "千问 ASR",
+      "provider": "qwen",
+      "base_url": "https://dashscope.aliyuncs.com",
+      "model": "qwen3-asr-flash-filetrans"
+    }
+  ]
+}

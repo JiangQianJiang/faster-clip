@@ -1,4 +1,4 @@
-import type { GlobalSettings, ClipConfig } from "../types/settings";
+import type { GlobalSettings, ClipConfig, ProviderPresets } from "../types/settings";
 import { authFetch, getAccessToken, authBlobUrl } from "../auth";
 
 export interface TaskConfig {
@@ -138,6 +138,49 @@ export async function saveApiSettings(params: SaveApiSettingsParams): Promise<Ap
     throw new Error(detail || `保存设置失败 (${res.status})`);
   }
   return mapApiSettings(await res.json());
+}
+
+interface PresetsResponse {
+  llm: Array<{
+    id: string;
+    name: string;
+    base_url: string;
+    model: string;
+  }>;
+  asr: Array<{
+    id: string;
+    name: string;
+    provider: "qwen" | "whisper_api";
+    base_url: string;
+    model: string;
+  }>;
+}
+
+function mapPresets(body: PresetsResponse): ProviderPresets {
+  return {
+    llm: body.llm.map((p) => ({
+      id: p.id,
+      name: p.name,
+      baseUrl: p.base_url,
+      model: p.model,
+    })),
+    asr: body.asr.map((p) => ({
+      id: p.id,
+      name: p.name,
+      provider: p.provider,
+      baseUrl: p.base_url,
+      model: p.model,
+    })),
+  };
+}
+
+export async function getPresets(): Promise<ProviderPresets> {
+  const res = await authFetch("/api/settings/presets");
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || `加载预设失败 (${res.status})`);
+  }
+  return mapPresets(await res.json());
 }
 
 export async function createTask({

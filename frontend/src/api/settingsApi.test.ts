@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getApiSettings, saveApiSettings } from "./client";
+import { getApiSettings, getPresets, saveApiSettings } from "./client";
 
 describe("api settings client", () => {
   beforeEach(() => {
@@ -90,4 +90,58 @@ describe("api settings client", () => {
       asr_api_key: "",
     });
   });
+
+  it("loads provider presets from server", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          llm: [
+            {
+              id: "deepseek",
+              name: "DeepSeek",
+              base_url: "https://api.deepseek.com/anthropic",
+              model: "deepseek-v4-pro",
+            },
+          ],
+          asr: [
+            {
+              id: "qwen",
+              name: "千问 ASR",
+              provider: "qwen",
+              base_url: "https://dashscope.aliyuncs.com",
+              model: "qwen3-asr-flash-filetrans",
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const presets = await getPresets();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/settings/presets",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+    expect(presets).toEqual({
+      llm: [
+        {
+          id: "deepseek",
+          name: "DeepSeek",
+          baseUrl: "https://api.deepseek.com/anthropic",
+          model: "deepseek-v4-pro",
+        },
+      ],
+      asr: [
+        {
+          id: "qwen",
+          name: "千问 ASR",
+          provider: "qwen",
+          baseUrl: "https://dashscope.aliyuncs.com",
+          model: "qwen3-asr-flash-filetrans",
+        },
+      ],
+    });
+  });
 });
+

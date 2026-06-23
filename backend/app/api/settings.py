@@ -1,8 +1,11 @@
+import os
 import sys
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+import json
+from pathlib import Path
 
 from app.services.settings_file import load_settings_file, nested_get, save_settings_file
 
@@ -100,3 +103,18 @@ def update_api_settings(update: ApiSettingsUpdate):
         raise HTTPException(status_code=500, detail="保存设置失败") from exc
     _refresh_runtime_settings()
     return _api_settings_response(merged)
+
+
+def _load_presets() -> dict:
+    path = Path(os.getenv("APP_PRESETS_PATH", "data/presets/api_providers.json"))
+    if not path.is_file():
+        return {"llm": [], "asr": []}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"llm": [], "asr": []}
+
+
+@router.get("/presets")
+def get_presets():
+    return _load_presets()

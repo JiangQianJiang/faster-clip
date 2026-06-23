@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { THEME } from "../theme";
 import Button from "../ui/Button";
-import type { GlobalSettings } from "../types/settings";
+import type { GlobalSettings, ProviderPresets } from "../types/settings";
 import { clearAccessToken } from "../auth";
-import { getApiSettings, saveApiSettings } from "../api/client";
+import { getApiSettings, getPresets, saveApiSettings } from "../api/client";
 
 interface Props {
   settings: GlobalSettings;
@@ -30,6 +30,8 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [presets, setPresets] = useState<ProviderPresets>({ llm: [], asr: [] });
+  const [selectedLlmPreset, setSelectedLlmPreset] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -37,8 +39,9 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
     let cancelled = false;
     setLoading(true);
     setLoadError("");
-    getApiSettings()
-      .then((serverSettings) => {
+
+    Promise.all([getApiSettings(), getPresets()])
+      .then(([serverSettings, presetsData]) => {
         if (cancelled) return;
         setLocal({
           llmBaseUrl: serverSettings.llmBaseUrl,
@@ -49,9 +52,12 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
         });
         setLlmApiKeyConfigured(serverSettings.llmApiKeyConfigured);
         setAsrApiKeyConfigured(serverSettings.asrApiKeyConfigured);
+        setPresets(presetsData);
       })
       .catch((err) => {
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err));
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : String(err));
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -123,6 +129,30 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
         delete next[field];
         return next;
       });
+    }
+  };
+
+  const handleLlmPresetSelect = (presetId: string) => {
+    setSelectedLlmPreset(presetId);
+    const preset = presets.llm.find((p) => p.id === presetId);
+    if (!preset) return;
+    setLocal((prev) => ({
+      ...prev,
+      llmBaseUrl: preset.baseUrl,
+      llmModel: preset.model,
+    }));
+  };
+
+  const handleAsrProviderChange = (provider: string) => {
+    update("asrProvider", provider);
+    const preset = presets.asr.find((p) => p.provider === provider);
+    if (preset) {
+      setLocal((prev) => ({
+        ...prev,
+        asrProvider: provider,
+        asrBaseUrl: preset.baseUrl,
+        asrModel: preset.model,
+      }));
     }
   };
 
@@ -209,6 +239,33 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
              LLM 模型
           </div>
 
+          {presets.llm.length > 0 && (
+            <>
+              <FieldLabel>提供商预设</FieldLabel>
+              <select
+                onChange={(e) => handleLlmPresetSelect(e.target.value)}
+                value={selectedLlmPreset}
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  border: `1px solid ${THEME.colors.border}`,
+                  borderRadius: THEME.radius.md,
+                  fontSize: THEME.fontSize.sm,
+                  background: THEME.colors.bgWhite,
+                  marginBottom: THEME.spacing.sm,
+                  boxSizing: "border-box",
+                }}
+              >
+                <option value="">自定义（手动输入）</option>
+                {presets.llm.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+
           <FieldLabel>API 地址</FieldLabel>
           <FieldInput
             value={local.llmBaseUrl}
@@ -256,7 +313,7 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
           <FieldLabel>提供商</FieldLabel>
           <select
             value={local.asrProvider}
-            onChange={(e) => update("asrProvider", e.target.value)}
+            onChange={(e) => handleAsrProviderChange(e.target.value)}
             style={{
               width: "100%",
               padding: "8px 10px",

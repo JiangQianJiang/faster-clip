@@ -5,6 +5,25 @@ export interface GlobalSettings {
   asrBaseUrl: string;
   asrModel: string;
 }
+export interface LlmPreset {
+  id: string;
+  name: string;
+  baseUrl: string;
+  model: string;
+}
+
+export interface AsrPreset {
+  id: string;
+  name: string;
+  provider: "qwen" | "whisper_api";
+  baseUrl: string;
+  model: string;
+}
+
+export interface ProviderPresets {
+  llm: LlmPreset[];
+  asr: AsrPreset[];
+}
 
 export interface ClipConfig {
   clipMinDuration: number;
