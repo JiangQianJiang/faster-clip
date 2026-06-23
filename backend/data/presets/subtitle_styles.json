@@ -1,0 +1,20 @@
+{
+  "douyin": {
+    "name": "抖音短视频",
+    "font_size": 32,
+    "font_color": "&H00FFFF",
+    "bold": true,
+    "alignment": 2,
+    "margin_v": 80,
+    "max_chars": 15
+  },
+  "minimal": {
+    "name": "简约对话",
+    "font_size": 26,
+    "font_color": "&HFFFFFF",
+    "bold": false,
+    "alignment": 2,
+    "margin_v": 80,
+    "max_chars": 15
+  }
+}

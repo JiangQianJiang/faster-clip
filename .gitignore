@@ -1,5 +1,6 @@
 .DS_Store
 CLAUDE.md
+agents.md
 .humanize/
 .superpowers/
 .worktrees/
@@ -33,6 +34,7 @@ data/*.db
 data/*.sqlite
 data/settings.json
 backend/data/
+!backend/data/presets/
 *.db-shm
 *.db-wal
 celerybeat-schedule

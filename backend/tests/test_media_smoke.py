@@ -301,7 +301,7 @@ def test_ffmpeg_timeout_terminates_subprocess():
         }
 
         old_timeout = settings.ffmpeg_timeout_seconds
-        object.__setattr__(settings, "ffmpeg_timeout_seconds", 0.5)
+        object.__setattr__(settings, "ffmpeg_timeout_seconds", 0.01)
 
         try:
             _export_clip(

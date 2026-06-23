@@ -27,6 +27,7 @@ htmlcov/
 
 # Data (not needed in image)
 data/
+!data/presets/
 *.db
 *.db-journal
 *.db-wal
