@@ -172,14 +172,6 @@ def test_put_api_settings_rejects_invalid_provider(monkeypatch, tmp_path):
 
 
 def test_get_presets_returns_llm_and_asr_presets(monkeypatch, tmp_path):
-    import os as _os
-
-    presets_abs = _os.path.abspath(
-        _os.path.join(
-            _os.path.dirname(__file__), "..", "..", "data", "presets", "api_providers.json"
-        )
-    )
-    monkeypatch.setenv("APP_PRESETS_PATH", presets_abs)
     client, _settings_path = _client_with_settings_file(monkeypatch, tmp_path, {})
 
     response = client.get("/api/settings/presets")

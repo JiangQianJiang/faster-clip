@@ -286,39 +286,36 @@ def test_export_clip_with_subtitle_burnin(test_video_and_dir):
 
 
 def test_ffmpeg_timeout_terminates_subprocess():
-    """When ffmpeg timeout is hit, subprocess.TimeoutExpired is raised."""
+    """When ffmpeg timeout is hit, subprocess.TimeoutExpired propagates."""
+    from unittest.mock import patch
+
     tmpdir = tempfile.mkdtemp(prefix="media_timeout_")
     try:
-        # Generate a longer video that can't encode within the tiny timeout
-        video = _make_test_video(tmpdir, duration=60.0)
+        video = _make_test_video(tmpdir, duration=10.0)
         outdir = os.path.join(tmpdir, "output")
         os.makedirs(outdir)
         clip = {
             "start_time_s": 0.0,
-            "end_time_s": 60.0,
+            "end_time_s": 5.0,
             "score": 1.0,
             "reason": "timeout",
         }
 
-        old_timeout = settings.ffmpeg_timeout_seconds
-        object.__setattr__(settings, "ffmpeg_timeout_seconds", 0.01)
-
-        try:
-            _export_clip(
-                video,
-                outdir,
-                0,
-                clip,
-                buffer=0,
-                burn=False,
-                segments=None,
-                max_duration=120,
-                video_duration=60,
+        with patch("app.worker.pipeline.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(
+                cmd=["ffmpeg", "..."], timeout=0.5
             )
-            pytest.fail("should have raised timeout")
-        except subprocess.TimeoutExpired:
-            pass  # expected
-        finally:
-            object.__setattr__(settings, "ffmpeg_timeout_seconds", old_timeout)
+            with pytest.raises(subprocess.TimeoutExpired):
+                _export_clip(
+                    video,
+                    outdir,
+                    0,
+                    clip,
+                    buffer=0,
+                    burn=False,
+                    segments=None,
+                    max_duration=120,
+                    video_duration=10,
+                )
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
