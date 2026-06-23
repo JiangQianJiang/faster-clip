@@ -76,7 +76,7 @@ ChatService → WorkflowRuntime 状态校验 → ToolExecutor 执行工具 → M
 ### 前置要求
 
 - Docker & Docker Compose
-- Anthropic API Key（用于 LLM 分析）
+- LLM API Key（用于 AI 分析）
 - ASR API Key（Whisper API 或 Qwen DashScope，二选一）
 
 ### 1. 克隆项目
@@ -124,10 +124,37 @@ make up
 - **前端**: http://localhost:3000
 - **后端 API**: http://localhost:8000/api/health
 
-### 4. 使用
+### 4. 配置 API Key
+
+打开前端后，进入右上角「全局设置」面板，填写或更新：
+
+- LLM API 地址、模型名称、API Key
+- ASR 提供商、API 地址、模型名称、API Key
+
+这些 API 设置会写入服务端 `data/settings.json`。已配置的 API Key 不会在网页回显；保存时 Key 输入框留空表示保留原值。
+
+也可以直接在服务器上提前创建 `data/settings.json`：
+
+```json
+{
+  "llm": {
+    "api_key": "<your-llm-api-key>",
+    "base_url": "https://api.deepseek.com/anthropic",
+    "model": "deepseek-v4-pro"
+  },
+  "asr": {
+    "api_key": "<your-asr-api-key>",
+    "provider": "qwen",
+    "base_url": "https://dashscope.aliyuncs.com",
+    "model": "qwen3-asr-flash-filetrans"
+  }
+}
+```
+
+### 5. 使用
 
 1. 打开 http://localhost:3000
-2. 在配置面板填入你的 Anthropic API Key 和 ASR API Key（不落盘，仅内存保存）
+2. 如有需要，在「全局设置」里更新模型地址、模型名称或 API Key
 3. 上传视频文件
 4. 等待自动处理完成，浏览和导出精彩片段
 
@@ -220,9 +247,16 @@ SHOW INDEX FROM tool_runs;
 | `FONTS_DIR` | 字幕烧录字体目录 | |
 | `DEBUG` | 开发模式 | |
 
+## 🧩 服务端设置文件
+
+除环境变量外，后端会读取 `data/settings.json`。环境变量优先级高于设置文件；如果同一个字段同时存在于 `.env` 和 `data/settings.json`，实际运行时会使用环境变量。
+
+前端「全局设置」只允许编辑 LLM/ASR API 相关字段，不开放数据库、Redis、访问令牌、限流或上传限制等运行配置。
+
 ## 🔒 安全
 
-- API Key **不落盘** — 数据库、`tool_runs`、聊天历史和日志中自动脱敏
+- API Key 保存在服务端 `data/settings.json`，不会保存到浏览器 localStorage
+- API Key 不会写入业务数据库、`tool_runs`、聊天历史或日志，相关输出会自动脱敏
 - Celery 消息队列中 API Key 经 **Fernet 加密**传输
 - **路径穿越防护** — 中间件拦截 `..` 和编码绕过
 - 字幕 PATCH 使用 `transcript_version` 乐观锁，避免并发编辑覆盖
