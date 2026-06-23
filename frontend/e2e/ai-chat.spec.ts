@@ -26,30 +26,24 @@ function sseEvent(type: string, data: unknown): string {
 
 async function seedGlobalSettings(
   page: import("@playwright/test").Page,
-  apiKey = "sk-ant-test-key-12345",
 ) {
-  await page.evaluate(
-    (key) => {
-      localStorage.setItem(
-        "global_llm_settings",
-        JSON.stringify({
-          llmBaseUrl: "https://api.anthropic.com",
-          llmModel: "claude",
-          llmApiKey: key,
-          asrProvider: "qwen",
-          asrBaseUrl: "https://dashscope.aliyuncs.com",
-          asrModel: "qwen3-asr-flash-filetrans",
-          asrApiKey: "",
-        }),
-      );
-    },
-    apiKey,
-  );
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "global_llm_settings",
+      JSON.stringify({
+        llmBaseUrl: "https://api.anthropic.com",
+        llmModel: "claude",
+        asrProvider: "qwen",
+        asrBaseUrl: "https://dashscope.aliyuncs.com",
+        asrModel: "qwen3-asr-flash-filetrans",
+      }),
+    );
+  });
 }
 
 test.describe("AI Chat Mode", () => {
-  test("renders chat UI and sends key in POST body", async ({ page }) => {
-    await seedGlobalSettings(page, "sk-ant-test-key-12345");
+  test("renders chat UI without sending API key in POST body", async ({ page }) => {
+    await seedGlobalSettings(page);
 
     // Mock task endpoint
     await page.route("**/api/tasks/test-ai-task-001", (route) => {
@@ -74,15 +68,15 @@ test.describe("AI Chat Mode", () => {
     await page.goto("/tasks/test-ai-task-001");
     await page.click("button:has-text('AI')");
 
-    // Send message — key comes from global settings (localStorage seed)
+    // Send message; provider key is resolved by the backend settings file.
     await page.fill('input[placeholder*="输入你的指令"]', "hello");
     await page.click("text=发送");
 
     // Wait for stream to process
     await page.waitForTimeout(500);
 
-    // Verify key was sent
-    expect(postedBody.llm_api_key).toBe("sk-ant-test-key-12345");
+    // Verify no provider key was sent from the browser
+    expect(postedBody.llm_api_key).toBeUndefined();
     expect(postedBody.message).toBe("hello");
 
     // Verify response rendered
@@ -90,7 +84,7 @@ test.describe("AI Chat Mode", () => {
   });
 
   test("checkpoint shows editor button when transcript exists, opens editor", async ({ page }) => {
-    await seedGlobalSettings(page, "sk-ant-test");
+    await seedGlobalSettings(page);
 
     await page.route("**/api/tasks/test-ai-task-001", (route) => {
       route.fulfill({ json: TASK_WITH_TRANSCRIPT });
@@ -149,7 +143,7 @@ test.describe("AI Chat Mode", () => {
   });
 
   test("checkpoint hides editor button when no transcript", async ({ page }) => {
-    await seedGlobalSettings(page, "sk-ant-test");
+    await seedGlobalSettings(page);
 
     await page.route("**/api/tasks/test-ai-task-002", (route) => {
       route.fulfill({ json: TASK_NO_TRANSCRIPT });
@@ -183,7 +177,7 @@ test.describe("AI Chat Mode", () => {
   });
 
   test("shows retry UI on stream failure without losing messages", async ({ page }) => {
-    await seedGlobalSettings(page, "sk-ant-test");
+    await seedGlobalSettings(page);
 
     await page.route("**/api/tasks/test-ai-task-001", (route) => {
       route.fulfill({ json: TASK_WITH_TRANSCRIPT });
@@ -207,7 +201,7 @@ test.describe("AI Chat Mode", () => {
   });
 
   test("failed checkpoint tool shows error card without checkpoint buttons", async ({ page }) => {
-    await seedGlobalSettings(page, "sk-ant-test");
+    await seedGlobalSettings(page);
 
     await page.route("**/api/tasks/test-ai-task-001", (route) => {
       route.fulfill({ json: TASK_WITH_TRANSCRIPT });

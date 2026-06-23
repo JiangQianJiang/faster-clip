@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSettingsContext } from "../context/SettingsContext";
 import {
   getTranscriptExportBlobUrl,
   patchTranscript,
@@ -35,7 +34,6 @@ interface Props {
 const exportFormats = ["srt", "vtt", "ass"];
 
 export default function SubtitleEditorModal({ task, transcript, onClose, onSaved }: Props) {
-  const { settings, openSettings } = useSettingsContext();
   const initialSegments = useMemo<EditableSubtitleSegment[]>(
     () => transcript.segments.map((segment, index) => ({
       id: `segment-${index}-${segment.start_time_s}-${segment.end_time_s}`,
@@ -204,12 +202,6 @@ export default function SubtitleEditorModal({ task, transcript, onClose, onSaved
       setSaveError("存在重叠或非法时长，请修正后再保存。");
       return false;
     }
-    const llmApiKey =
-      afterSaveAction === "reanalyze" ? settings.llmApiKey.trim() : "";
-    if (afterSaveAction === "reanalyze" && !llmApiKey) {
-      setSaveError("未配置 LLM API Key。请在侧边栏底部配置后重试。");
-      return false;
-    }
     setSaving(true);
     try {
       await patchTranscript(
@@ -217,7 +209,6 @@ export default function SubtitleEditorModal({ task, transcript, onClose, onSaved
         toTranscriptPayload(state.present),
         afterSaveAction,
         task.transcript_version,
-        llmApiKey || undefined,
       );
       onSaved();
       return true;
@@ -464,23 +455,6 @@ export default function SubtitleEditorModal({ task, transcript, onClose, onSaved
         {saveError && (
           <div style={{ position: "absolute", bottom: 20, left: "50%", transform: "translateX(-50%)", background: "#fee2e2", color: "#991b1b", border: "1px solid #fecaca", padding: "8px 12px", borderRadius: 6, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
             <span>{saveError}</span>
-            {saveError.startsWith("未配置 LLM API Key") && (
-              <button
-                onClick={openSettings}
-                style={{
-                  padding: "2px 10px",
-                  fontSize: 12,
-                  border: `1px solid ${THEME.colors.errorText}`,
-                  borderRadius: 4,
-                  background: "#fff",
-                  color: "#991b1b",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                配置
-              </button>
-            )}
           </div>
         )}
       </div>

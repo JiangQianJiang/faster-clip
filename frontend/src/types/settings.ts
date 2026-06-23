@@ -1,11 +1,9 @@
 export interface GlobalSettings {
   llmBaseUrl: string;
   llmModel: string;
-  llmApiKey: string;
   asrProvider: string;
   asrBaseUrl: string;
   asrModel: string;
-  asrApiKey: string;
 }
 
 export interface ClipConfig {
@@ -18,11 +16,9 @@ export interface ClipConfig {
 export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   llmBaseUrl: "https://api.deepseek.com/anthropic",
   llmModel: "deepseek-v4-pro",
-  llmApiKey: "",
   asrProvider: "qwen",
   asrBaseUrl: "https://dashscope.aliyuncs.com",
   asrModel: "qwen3-asr-flash-filetrans",
-  asrApiKey: "",
 };
 
 export const DEFAULT_CLIP_CONFIG: ClipConfig = {
@@ -36,8 +32,21 @@ export function loadSettings(): GlobalSettings {
   try {
     const raw = localStorage.getItem("global_llm_settings");
     if (!raw) return { ...DEFAULT_GLOBAL_SETTINGS };
-    const parsed = JSON.parse(raw) as Partial<GlobalSettings>;
-    return { ...DEFAULT_GLOBAL_SETTINGS, ...parsed };
+    const parsed = JSON.parse(raw) as Partial<GlobalSettings> & {
+      llmApiKey?: unknown;
+      asrApiKey?: unknown;
+    };
+    const sanitized = {
+      llmBaseUrl: parsed.llmBaseUrl ?? DEFAULT_GLOBAL_SETTINGS.llmBaseUrl,
+      llmModel: parsed.llmModel ?? DEFAULT_GLOBAL_SETTINGS.llmModel,
+      asrProvider: parsed.asrProvider ?? DEFAULT_GLOBAL_SETTINGS.asrProvider,
+      asrBaseUrl: parsed.asrBaseUrl ?? DEFAULT_GLOBAL_SETTINGS.asrBaseUrl,
+      asrModel: parsed.asrModel ?? DEFAULT_GLOBAL_SETTINGS.asrModel,
+    };
+    if ("llmApiKey" in parsed || "asrApiKey" in parsed) {
+      saveSettingsToStorage(sanitized);
+    }
+    return sanitized;
   } catch {
     return { ...DEFAULT_GLOBAL_SETTINGS };
   }

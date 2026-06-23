@@ -90,7 +90,7 @@ async def create_task_endpoint(
     file: UploadFile = File(...),
     llm_base_url: str = Form(...),
     llm_model: str = Form(...),
-    llm_api_key: str = Form(...),
+    llm_api_key: str = Form(""),
     asr_api_key: str = Form(""),
     asr_base_url: str = Form(""),
     asr_model: str = Form("qwen3-asr-flash-filetrans"),
@@ -109,6 +109,14 @@ async def create_task_endpoint(
         buffer_seconds,
         asr_base_url,
     )
+
+    resolved_llm_api_key = (settings.llm_api_key or "").strip() or llm_api_key.strip()
+    resolved_asr_api_key = (settings.asr_api_key or "").strip() or asr_api_key.strip()
+    if not resolved_llm_api_key:
+        raise HTTPException(
+            422,
+            detail="服务端未配置 LLM API Key，请在 setting 文件中配置 llm.api_key。",
+        )
 
     if not file.filename:
         raise HTTPException(400, detail="未选择文件")
@@ -296,8 +304,8 @@ async def create_task_endpoint(
         "task_id": task_id,
         "video_path": str(dest),
         "config": config,
-        "llm_api_key": encrypt_api_key(llm_api_key),
-        "asr_api_key": encrypt_api_key(asr_api_key),
+        "llm_api_key": encrypt_api_key(resolved_llm_api_key),
+        "asr_api_key": encrypt_api_key(resolved_asr_api_key),
     }
     try:
         process_video_task.apply_async(kwargs=task_kwargs, task_id=task_id)

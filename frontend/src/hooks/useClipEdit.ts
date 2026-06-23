@@ -32,7 +32,6 @@ export interface UseClipEditParams {
   onSaved?: () => void;
   onClose: () => void;
   videoRef: React.RefObject<HTMLVideoElement>;
-  settings: { llmApiKey: string };
 
   segments: TranscriptSegment[];
   setSegments: React.Dispatch<React.SetStateAction<TranscriptSegment[]>>;
@@ -43,7 +42,6 @@ export function useClipEdit({
   onSaved,
   onClose,
   videoRef,
-  settings,
   segments,
   setSegments,
 }: UseClipEditParams) {
@@ -316,15 +314,6 @@ export function useClipEdit({
     }
     if (!clipWindow) return false;
 
-    let llmApiKey: string | undefined;
-    if (afterSaveAction === "reanalyze") {
-      llmApiKey = settings.llmApiKey.trim() || undefined;
-      if (!llmApiKey) {
-        setSaveError("未配置 LLM API Key。请在侧边栏底部配置后重试。");
-        return false;
-      }
-    }
-
     setSaving(true);
     setSaveError(null);
     setServerIssues([]);
@@ -335,7 +324,7 @@ export function useClipEdit({
         clipWindow.end,
         editingState.present,
       );
-      const result = await patchTranscript(taskId, merged, afterSaveAction, baseTranscriptVersion, llmApiKey);
+      const result = await patchTranscript(taskId, merged, afterSaveAction, baseTranscriptVersion);
       if (result.transcript_version !== undefined) {
         setBaseTranscriptVersion(result.transcript_version);
       }

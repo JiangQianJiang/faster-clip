@@ -30,7 +30,7 @@ test.describe("Home AI-First Flow", () => {
     await page.waitForLoadState("networkidle");
 
     // Verify the configuration warning is visible
-    await expect(page.getByText("请先配置 LLM API Key")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("请先配置 LLM 模型")).toBeVisible({ timeout: 10000 });
 
     // Select a video file via the hidden file input
     const fileInput = page.locator('input[type="file"]');
@@ -108,19 +108,17 @@ test.describe("Home AI-First Flow", () => {
         JSON.stringify({
           llmBaseUrl: "https://api.anthropic.com",
           llmModel: "claude",
-          llmApiKey: "sk-ant-test-key-12345",
           asrProvider: "qwen",
           asrBaseUrl: "https://dashscope.aliyuncs.com",
           asrModel: "qwen3-asr-flash-filetrans",
-          asrApiKey: "",
         }),
       );
     });
     await page.reload();
     await page.waitForLoadState("networkidle");
 
-    // No configuration warning should be visible
-    await expect(page.getByText("请先配置 LLM API Key")).not.toBeVisible();
+    // No model configuration warning should be visible
+    await expect(page.getByText("请先配置 LLM 模型")).not.toBeVisible();
 
     // Select a video file
     const fileInput = page.locator('input[type="file"]');
@@ -141,7 +139,7 @@ test.describe("Home AI-First Flow", () => {
     await expect(chatInput).toBeVisible({ timeout: 5000 });
     await expect(chatInput).toBeEnabled();
 
-    // Verify POST body contains exact default clip params and configured LLM fields
+    // Verify POST body contains exact default clip params and configured non-secret fields
     const formBody = postFormFields.join("");
 
     // Helper: check that a form field name is followed by its expected value
@@ -161,6 +159,7 @@ test.describe("Home AI-First Flow", () => {
     assertFormField(formBody, "burn_subtitle", "false");
     assertFormField(formBody, "llm_base_url", "https://api.anthropic.com");
     assertFormField(formBody, "llm_model", "claude");
-    assertFormField(formBody, "llm_api_key", "sk-ant-test-key-12345");
+    expect(formBody).not.toContain('name="llm_api_key"');
+    expect(formBody).not.toContain('name="asr_api_key"');
   });
 });

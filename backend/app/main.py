@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.chat import router as chat_router
 from app.api.clips import router as clips_router
+from app.api.settings import router as settings_router
 from app.api.subtitles import router as subtitles_router
 from app.api.tasks_crud import router as tasks_crud_router
 from app.auth import create_auth_verify_router
@@ -44,6 +45,7 @@ app.include_router(tasks_crud_router)
 app.include_router(subtitles_router)
 app.include_router(clips_router)
 app.include_router(chat_router)
+app.include_router(settings_router)
 app.include_router(create_auth_verify_router())
 
 # Middleware order (add_middleware prepends — last added = outermost):

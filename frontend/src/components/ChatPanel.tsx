@@ -205,7 +205,6 @@ export default function ChatPanel({
   const { settings, isConfigured, openSettings } = useSettingsContext();
   const { messages, isStreaming, error, sendMessage, cancelStream } = useChat(
     taskId,
-    settings.llmApiKey.trim(),
     chatHistoryJson,
   );
   const [inputValue, setInputValue] = useState("");
@@ -386,7 +385,7 @@ export default function ChatPanel({
             justifyContent: "space-between",
           }}
         >
-          <span>请先配置 LLM API Key</span>
+          <span>请先配置 LLM 模型</span>
           <Button variant="secondary" size="sm" onClick={openSettings}>配置</Button>
         </div>
       )}
@@ -518,7 +517,7 @@ export default function ChatPanel({
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={isConfigured ? "输入你的指令..." : "请先配置 LLM API Key"}
+          placeholder={isConfigured ? "输入你的指令..." : "请先配置 LLM 模型"}
           disabled={isStreaming || !isConfigured}
           style={{
             flex: 1,

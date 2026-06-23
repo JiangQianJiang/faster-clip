@@ -2,7 +2,7 @@
  * Authentication utilities for access token management.
  *
  * Access token is stored in sessionStorage (cleared when tab closes).
- * API keys remain in localStorage as an accepted risk.
+ * Provider API keys are configured on the server and are never stored here.
  */
 
 const TOKEN_KEY = "live_clipper_access_token";

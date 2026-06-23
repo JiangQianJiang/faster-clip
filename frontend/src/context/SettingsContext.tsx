@@ -28,7 +28,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setSettings(s);
   }, []);
 
-  const isConfigured = settings.llmApiKey.trim() !== "";
+  const isConfigured =
+    settings.llmBaseUrl.trim() !== "" && settings.llmModel.trim() !== "";
 
   const openSettings = useCallback(() => setIsModalOpen(true), []);
   const closeSettings = useCallback(() => setIsModalOpen(false), []);

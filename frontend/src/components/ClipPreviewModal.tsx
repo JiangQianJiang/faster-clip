@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef, useCallback, useReducer } from "react";
-import { useSettingsContext } from "../context/SettingsContext";
 import type { Clip, TranscriptSegment } from "../api/client";
 import {
   getClipSubtitleUrl,
@@ -66,7 +65,6 @@ export default function ClipPreviewModal({
   onSaved,
   onClose,
 }: Props) {
-  const { settings, openSettings } = useSettingsContext();
   // Shared state
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
@@ -419,15 +417,6 @@ export default function ClipPreviewModal({
     }
     if (!clipWindow) return false;
 
-    let llmApiKey: string | undefined;
-    if (afterSaveAction === "reanalyze") {
-      llmApiKey = settings.llmApiKey.trim() || undefined;
-      if (!llmApiKey) {
-        setSaveError("未配置 LLM API Key。请在侧边栏底部配置后重试。");
-        return false;
-      }
-    }
-
     setSaving(true);
     setSaveError(null);
     setServerIssues([]);
@@ -438,7 +427,7 @@ export default function ClipPreviewModal({
         clipWindow.end,
         editingState.present,
       );
-      const result = await patchTranscript(taskId, merged, afterSaveAction, baseTranscriptVersion, llmApiKey);
+      const result = await patchTranscript(taskId, merged, afterSaveAction, baseTranscriptVersion);
       if (result.transcript_version !== undefined) {
         setBaseTranscriptVersion(result.transcript_version);
       }
@@ -838,23 +827,6 @@ export default function ClipPreviewModal({
                 }}
               >
                 刷新
-              </button>
-            )}
-            {saveError.startsWith("未配置 LLM API Key") && (
-              <button
-                onClick={openSettings}
-                style={{
-                  padding: "2px 10px",
-                  fontSize: 11,
-                  border: "1px solid #ef4444",
-                  borderRadius: 4,
-                  background: "#fff",
-                  color: THEME.colors.errorText,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                配置
               </button>
             )}
             <button

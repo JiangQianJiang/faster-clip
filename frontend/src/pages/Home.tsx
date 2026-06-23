@@ -26,7 +26,7 @@ export default function Home() {
     }
 
     if (!isConfigured) {
-      setError("请先配置 LLM API Key");
+      setError("请先配置 LLM 模型");
       setFile(null);
       setUploadKey((k) => k + 1);
       openSettings();
@@ -80,7 +80,7 @@ export default function Home() {
             color: THEME.colors.warningText,
           }}
         >
-          <span>请先配置 LLM API Key</span>
+          <span>请先配置 LLM 模型</span>
           <Button variant="secondary" size="sm" onClick={openSettings}>配置</Button>
         </div>
       )}

@@ -68,6 +68,78 @@ export interface CreateTaskResponse {
   warnings?: string[];
 }
 
+export interface ApiSettings {
+  llmBaseUrl: string;
+  llmModel: string;
+  llmApiKeyConfigured: boolean;
+  asrProvider: "qwen" | "whisper_api";
+  asrBaseUrl: string;
+  asrModel: string;
+  asrApiKeyConfigured: boolean;
+}
+
+export interface SaveApiSettingsParams {
+  llmBaseUrl: string;
+  llmModel: string;
+  llmApiKey?: string;
+  asrProvider: "qwen" | "whisper_api";
+  asrBaseUrl: string;
+  asrModel: string;
+  asrApiKey?: string;
+}
+
+interface ApiSettingsResponse {
+  llm_base_url: string;
+  llm_model: string;
+  llm_api_key_configured: boolean;
+  asr_provider: "qwen" | "whisper_api";
+  asr_base_url: string;
+  asr_model: string;
+  asr_api_key_configured: boolean;
+}
+
+function mapApiSettings(body: ApiSettingsResponse): ApiSettings {
+  return {
+    llmBaseUrl: body.llm_base_url,
+    llmModel: body.llm_model,
+    llmApiKeyConfigured: body.llm_api_key_configured,
+    asrProvider: body.asr_provider,
+    asrBaseUrl: body.asr_base_url,
+    asrModel: body.asr_model,
+    asrApiKeyConfigured: body.asr_api_key_configured,
+  };
+}
+
+export async function getApiSettings(): Promise<ApiSettings> {
+  const res = await authFetch("/api/settings/api");
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || `加载设置失败 (${res.status})`);
+  }
+  return mapApiSettings(await res.json());
+}
+
+export async function saveApiSettings(params: SaveApiSettingsParams): Promise<ApiSettings> {
+  const res = await authFetch("/api/settings/api", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      llm_base_url: params.llmBaseUrl,
+      llm_model: params.llmModel,
+      llm_api_key: params.llmApiKey ?? "",
+      asr_provider: params.asrProvider,
+      asr_base_url: params.asrBaseUrl,
+      asr_model: params.asrModel,
+      asr_api_key: params.asrApiKey ?? "",
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(detail || `保存设置失败 (${res.status})`);
+  }
+  return mapApiSettings(await res.json());
+}
+
 export async function createTask({
   file,
   clipConfig,
@@ -79,8 +151,6 @@ export async function createTask({
   form.append("file", file);
   form.append("llm_base_url", settings.llmBaseUrl);
   form.append("llm_model", settings.llmModel);
-  form.append("llm_api_key", settings.llmApiKey);
-  form.append("asr_api_key", settings.asrApiKey);
   form.append("asr_base_url", settings.asrBaseUrl);
   form.append("asr_model", settings.asrModel);
   form.append("asr_provider", settings.asrProvider);
@@ -213,14 +283,10 @@ export async function patchTranscript(
   segments: TranscriptSegment[],
   afterSave: TranscriptAfterSave = "save_only",
   baseTranscriptVersion?: number,
-  llmApiKey?: string,
-  asrApiKey?: string,
 ): Promise<PatchTranscriptResponse> {
   const body: Record<string, unknown> = {
     segments,
     after_save: afterSave,
-    llm_api_key: llmApiKey,
-    asr_api_key: asrApiKey,
   };
   if (baseTranscriptVersion !== undefined) {
     body.base_transcript_version = baseTranscriptVersion;

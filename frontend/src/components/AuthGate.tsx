@@ -121,7 +121,7 @@ export default function AuthGate({ children }: AuthGateProps) {
       <button
         onClick={handleExit}
         style={styles.exitButton}
-        title="退出共享访问（不会清除 API Key）"
+        title="退出共享访问并清除当前标签页的访问令牌"
       >
         退出共享访问
       </button>

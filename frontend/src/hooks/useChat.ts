@@ -115,7 +115,7 @@ function parseChatHistory(raw: string): ChatMessage[] {
   return messages;
 }
 
-export function useChat(taskId: string | undefined, apiKey: string = "", initialChatHistory?: string) {
+export function useChat(taskId: string | undefined, initialChatHistory?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     // Initialize from persisted history on first render — avoids
     // async race conditions that can cause "flash then disappear".
@@ -160,15 +160,11 @@ export function useChat(taskId: string | undefined, apiKey: string = "", initial
       abortRef.current = controller;
 
       try {
-        const body: Record<string, string> = { message: text };
-        const key = apiKey.trim();
-        if (key) body.llm_api_key = key;
-
         const { authFetch } = await import("../auth");
         const response = await authFetch(`/api/tasks/${taskId}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ message: text }),
           signal: controller.signal,
         });
 
@@ -431,7 +427,7 @@ export function useChat(taskId: string | undefined, apiKey: string = "", initial
         abortRef.current = null;
       }
     },
-    [taskId, apiKey]
+    [taskId]
   );
 
   const cancelStream = useCallback(() => {

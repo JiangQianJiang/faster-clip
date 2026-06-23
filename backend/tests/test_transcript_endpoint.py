@@ -1498,8 +1498,8 @@ class TestPatchTranscript:
             shutil.rmtree(tmp_output, ignore_errors=True)
             shutil.rmtree(str(Path(video_path).parent), ignore_errors=True)
 
-    def test_patch_reanalyze_requires_llm_api_key(self):
-        """PATCH after_save=reanalyze rejects requests without a fresh LLM key."""
+    def test_patch_reanalyze_uses_server_settings_key(self):
+        """PATCH after_save=reanalyze enqueues with the shared server LLM key."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
             db_path = tmp.name
         try:
@@ -1507,10 +1507,17 @@ class TestPatchTranscript:
             task_id = self.T1
             original = [{"start_time_s": 1.0, "end_time_s": 3.0, "text": "old"}]
             tmp_output = self._setup_transcript(task_id, original)
-            _insert_task_full(db_path, task_id)
+            video_path = str(Path(tempfile.mkdtemp()) / "original.mp4")
+            Path(video_path).write_bytes(b"fake video")
+            _insert_task_full(db_path, task_id, video_path=video_path)
 
             client = _make_client()
-            with patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)):
+            with (
+                patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)),
+                patch("app.config.settings.llm_api_key", "settings-llm-secret"),
+                patch("app.config.settings.asr_api_key", ""),
+                patch("app.worker.celery_app.process_video_task.apply_async") as mock_apply,
+            ):
                 response = client.patch(
                     f"/api/tasks/{task_id}/transcript",
                     json={
@@ -1522,15 +1529,22 @@ class TestPatchTranscript:
                     },
                 )
 
-            assert response.status_code == 422
+            assert response.status_code == 200
             with open(Path(tmp_output) / task_id / "transcript.json") as f:
                 saved = json.load(f)
-            assert saved[0]["text"] == "old"
+            assert saved[0]["text"] == "fresh"
+
+            mock_apply.assert_called_once()
+            kwargs = mock_apply.call_args.kwargs["kwargs"]
+            from app.crypto import decrypt_api_key
+
+            assert decrypt_api_key(kwargs["llm_api_key"]) == "settings-llm-secret"
         finally:
             os.unlink(db_path)
             import shutil
 
             shutil.rmtree(tmp_output, ignore_errors=True)
+            shutil.rmtree(str(Path(video_path).parent), ignore_errors=True)
 
     def test_patch_accepts_unnormalized_existing_timestamps(self):
         """Text-only edit succeeds when existing transcript has >3 decimal timestamps."""

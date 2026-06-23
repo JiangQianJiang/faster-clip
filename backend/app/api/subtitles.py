@@ -158,9 +158,24 @@ async def patch_transcript(task_id: str, body: dict):
     if not isinstance(base_version, int) or base_version < 0:
         raise HTTPException(422, detail="base_transcript_version 必须是非负整数")
 
-    # Reanalyze requires a fresh LLM API key
-    if after_save == "reanalyze" and not body.get("llm_api_key"):
-        raise HTTPException(422, detail="缺少 llm_api_key，重新分析需要提供新的 API key")
+    resolved_llm_api_key = ""
+    resolved_asr_api_key = ""
+    if after_save == "reanalyze":
+        from app.config import settings
+
+        resolved_llm_api_key = (
+            (settings.llm_api_key or "").strip()
+            or str(body.get("llm_api_key") or "").strip()
+        )
+        resolved_asr_api_key = (
+            (settings.asr_api_key or "").strip()
+            or str(body.get("asr_api_key") or "").strip()
+        )
+        if not resolved_llm_api_key:
+            raise HTTPException(
+                422,
+                detail="服务端未配置 LLM API Key，请在 setting 文件中配置 llm.api_key。",
+            )
 
     from app.utils import utcnow_iso
 
@@ -272,8 +287,8 @@ async def patch_transcript(task_id: str, body: dict):
                 "task_id": task_id,
                 "video_path": video_path,
                 "config": config,
-                "llm_api_key": encrypt_api_key(body.get("llm_api_key") or ""),
-                "asr_api_key": encrypt_api_key(body.get("asr_api_key") or ""),
+                "llm_api_key": encrypt_api_key(resolved_llm_api_key),
+                "asr_api_key": encrypt_api_key(resolved_asr_api_key),
             }
             try:
                 process_video_task.apply_async(kwargs=task_kwargs, task_id=task_id)

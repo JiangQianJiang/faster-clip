@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { THEME } from "../theme";
 import Button from "../ui/Button";
 import type { GlobalSettings } from "../types/settings";
 import { clearAccessToken } from "../auth";
+import { getApiSettings, saveApiSettings } from "../api/client";
 
 interface Props {
   settings: GlobalSettings;
@@ -22,13 +23,43 @@ function isValidUrl(s: string): boolean {
 
 export default function SettingsModal({ settings, onSave, onClose }: Props) {
   const [local, setLocal] = useState<GlobalSettings>({ ...settings });
+  const [llmApiKey, setLlmApiKey] = useState("");
+  const [asrApiKey, setAsrApiKey] = useState("");
+  const [llmApiKeyConfigured, setLlmApiKeyConfigured] = useState(false);
+  const [asrApiKeyConfigured, setAsrApiKeyConfigured] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [confirmed, setConfirmed] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleClearApiKeys = () => {
-    const cleared = { ...local, llmApiKey: "", asrApiKey: "" };
-    setLocal(cleared);
-  };
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError("");
+    getApiSettings()
+      .then((serverSettings) => {
+        if (cancelled) return;
+        setLocal({
+          llmBaseUrl: serverSettings.llmBaseUrl,
+          llmModel: serverSettings.llmModel,
+          asrProvider: serverSettings.asrProvider,
+          asrBaseUrl: serverSettings.asrBaseUrl,
+          asrModel: serverSettings.asrModel,
+        });
+        setLlmApiKeyConfigured(serverSettings.llmApiKeyConfigured);
+        setAsrApiKeyConfigured(serverSettings.asrApiKeyConfigured);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleClearAll = () => {
     localStorage.removeItem("global_llm_settings");
@@ -46,23 +77,41 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
     if (!local.llmModel.trim()) {
       e.llmModel = "模型名称不能为空";
     }
-    if (local.asrApiKey.trim()) {
-      if (!local.asrProvider.trim()) {
-        e.asrProvider = "请选择 ASR 提供商";
-      }
-      if (!local.asrBaseUrl.trim()) {
-        e.asrBaseUrl = "ASR API 地址不能为空";
-      } else if (!isValidUrl(local.asrBaseUrl)) {
-        e.asrBaseUrl = "请输入有效的 URL";
-      }
+    if (local.asrBaseUrl.trim() && !isValidUrl(local.asrBaseUrl)) {
+      e.asrBaseUrl = "请输入有效的 URL";
+    }
+    if (local.asrModel.trim() && !local.asrProvider.trim()) {
+      e.asrProvider = "请选择 ASR 提供商";
     }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
-  const handleSave = () => {
-    if (validate()) {
-      onSave({ ...local });
+  const handleSave = async () => {
+    if (!validate()) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const saved = await saveApiSettings({
+        llmBaseUrl: local.llmBaseUrl,
+        llmModel: local.llmModel,
+        llmApiKey,
+        asrProvider: local.asrProvider as "qwen" | "whisper_api",
+        asrBaseUrl: local.asrBaseUrl,
+        asrModel: local.asrModel,
+        asrApiKey,
+      });
+      onSave({
+        llmBaseUrl: saved.llmBaseUrl,
+        llmModel: saved.llmModel,
+        asrProvider: saved.asrProvider,
+        asrBaseUrl: saved.asrBaseUrl,
+        asrModel: saved.asrModel,
+      });
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -128,23 +177,24 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
         </div>
 
         <div style={{ padding: THEME.spacing.lg }}>
-          {/* Risk Warning */}
+          {/* Server settings note */}
           <div
             style={{
-              background: "#fff3cd",
-              border: "1px solid #ffc107",
+              background: loadError ? "#fef2f2" : "#f1f5f9",
+              border: `1px solid ${loadError ? THEME.colors.errorText : THEME.colors.borderLight}`,
               borderRadius: THEME.radius.md,
               padding: "10px 12px",
               marginBottom: 16,
               fontSize: 12,
-              color: "#856404",
+              color: loadError ? THEME.colors.errorText : THEME.colors.textSecondary,
               lineHeight: 1.5,
             }}
           >
-            <strong> 安全提示：</strong>
-            API Key 将以明文保存在当前浏览器的 localStorage 中。
-            浏览器扩展、XSS 攻击和共享此电脑的其他用户可能读取这些密钥。
-            关闭标签页后访问令牌将自动清除，但 API Key 会持久保留。
+            {loading
+              ? "正在读取服务端 setting 文件..."
+              : loadError
+                ? `读取服务端设置失败：${loadError}`
+                : "API Key 会保存到服务端 setting 文件；已配置的 Key 不会回显，留空表示不修改。"}
           </div>
 
           {/* LLM Section */}
@@ -177,11 +227,10 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
 
           <FieldLabel>API Key</FieldLabel>
           <FieldInput
-            value={local.llmApiKey}
-            onChange={(v) => update("llmApiKey", v)}
-            placeholder="sk-..."
+            value={llmApiKey}
+            onChange={setLlmApiKey}
+            placeholder={llmApiKeyConfigured ? "已配置，留空不修改" : "输入 LLM API Key"}
             type="password"
-            error={errors.llmApiKey}
           />
 
           {/* Divider */}
@@ -239,40 +288,17 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
             placeholder="qwen3-asr-flash-filetrans"
           />
 
-          <FieldLabel>
-            API Key{" "}
-            <span style={{ color: THEME.colors.textMuted, fontWeight: 400 }}>(可选)</span>
-          </FieldLabel>
+          <FieldLabel>API Key</FieldLabel>
           <FieldInput
-            value={local.asrApiKey}
-            onChange={(v) => update("asrApiKey", v)}
-            placeholder="留空则仅提取内嵌字幕"
+            value={asrApiKey}
+            onChange={setAsrApiKey}
+            placeholder={asrApiKeyConfigured ? "已配置，留空不修改" : "输入 ASR API Key"}
             type="password"
           />
-        </div>
 
-        {/* Save confirmation */}
-        {local.llmApiKey.trim() && (
-          <div style={{ padding: "0 16px 8px" }}>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                fontSize: 12,
-                color: THEME.colors.textSecondary,
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={confirmed}
-                onChange={(e) => setConfirmed(e.target.checked)}
-              />
-              我了解 API Key 将以明文保存在浏览器中
-            </label>
-          </div>
-        )}
+          {saveError && <ErrorText text={`保存失败：${saveError}`} />}
+
+        </div>
 
         <div
           style={{
@@ -286,9 +312,6 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
           }}
         >
           <div style={{ display: "flex", gap: 8 }}>
-            <Button variant="secondary" size="sm" onClick={handleClearApiKeys}>
-              清除 API Key
-            </Button>
             <Button
               variant="secondary"
               size="sm"
@@ -304,9 +327,9 @@ export default function SettingsModal({ settings, onSave, onClose }: Props) {
               variant="primary"
               size="sm"
               onClick={handleSave}
-              disabled={!!local.llmApiKey.trim() && !confirmed}
+              disabled={loading || saving}
             >
-              保存
+              {saving ? "保存中..." : "保存"}
             </Button>
           </div>
         </div>

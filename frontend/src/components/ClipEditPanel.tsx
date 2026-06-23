@@ -57,7 +57,6 @@ interface ClipEditPanelProps {
 
   videoHeight: number;
   taskId: string;
-  openSettings: () => void;
 
   // ── Refs ──
   activeRef: React.RefObject<HTMLDivElement>;
@@ -101,7 +100,6 @@ export default function ClipEditPanel({
 
   videoHeight,
   taskId,
-  openSettings,
   activeRef,
   videoRef,
   onLoadedMetadata,
@@ -256,23 +254,6 @@ export default function ClipEditPanel({
               }}
             >
               刷新
-            </button>
-          )}
-          {saveError.startsWith("未配置 LLM API Key") && (
-            <button
-              onClick={openSettings}
-              style={{
-                padding: "2px 10px",
-                fontSize: 11,
-                border: "1px solid #ef4444",
-                borderRadius: 4,
-                background: "#fff",
-                color: THEME.colors.errorText,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              配置
             </button>
           )}
           <button

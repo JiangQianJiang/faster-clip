@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,22 @@ def load_settings_file() -> dict[str, Any]:
     if not isinstance(data, dict):
         return {}
     return data
+
+
+def save_settings_file(settings: dict[str, Any]) -> None:
+    path = get_settings_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(settings, ensure_ascii=False, indent=2, sort_keys=True)
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=path.parent,
+        delete=False,
+    ) as tmp:
+        tmp.write(payload)
+        tmp.write("\n")
+        tmp_path = Path(tmp.name)
+    tmp_path.replace(path)
 
 
 def nested_get(settings: dict[str, Any], path: str, default: Any = None) -> Any:

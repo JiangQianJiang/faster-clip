@@ -340,7 +340,7 @@ def test_thumbnail_rejects_negative_clip_index():
 
 
 def test_upload_valid_file_returns_201():
-    """POST /api/tasks with valid mp4 and mocked probe/Celery returns 201 + queued task."""
+    """POST /api/tasks uses server settings keys and does not require browser keys."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
         db_path = tmp.name
     try:
@@ -350,6 +350,8 @@ def test_upload_valid_file_returns_201():
         client = _make_client()
 
         with (
+            patch("app.api.tasks_crud.settings.llm_api_key", "settings-llm-secret"),
+            patch("app.api.tasks_crud.settings.asr_api_key", "settings-asr-secret"),
             patch("app.api.tasks_crud.probe", return_value=_make_info()),
             patch("app.worker.celery_app.process_video_task.apply_async") as mock_apply,
             patch("app.api.tasks_crud.VIDEOS_DIR", Path(tmp_videos)),
@@ -361,8 +363,6 @@ def test_upload_valid_file_returns_201():
                 data={
                     "llm_base_url": "https://api.anthropic.com",
                     "llm_model": "claude-opus-4-7",
-                    "llm_api_key": "sk-ant-secret123",
-                    "asr_api_key": "sk-whisper-secret456",
                 },
             )
 
@@ -383,6 +383,11 @@ def test_upload_valid_file_returns_201():
         assert "sk-ant" not in json.dumps(config_json)
 
         mock_apply.assert_called_once()
+        kwargs = mock_apply.call_args.kwargs["kwargs"]
+        from app.crypto import decrypt_api_key
+
+        assert decrypt_api_key(kwargs["llm_api_key"]) == "settings-llm-secret"
+        assert decrypt_api_key(kwargs["asr_api_key"]) == "settings-asr-secret"
     finally:
         os.unlink(db_path)
         import shutil
