@@ -59,9 +59,7 @@ def on_worker_ready(**kwargs):
     setup_json_logging()
 
 
-@celery_app.task(
-    bind=True, max_retries=1, name="app.worker.celery_app.process_video_task"
-)
+@celery_app.task(bind=True, max_retries=1, name="app.worker.celery_app.process_video_task")
 def process_video_task(
     self,
     task_id: str,
@@ -232,9 +230,7 @@ def export_clips_task(
     # Filter clips
     if clip_indices:
         selected = [
-            (i, c)
-            for i, c in enumerate(clips)
-            if i in clip_indices and c.get("status") != "failed"
+            (i, c) for i, c in enumerate(clips) if i in clip_indices and c.get("status") != "failed"
         ]
     else:
         selected = [(i, c) for i, c in enumerate(clips) if c.get("status") != "failed"]
@@ -285,7 +281,9 @@ def export_clips_task(
     update_task_status(task_id, "processing", stage="ai_exporting")
     # Count pre-existing successes so a re-export that fails doesn't
     # overwrite an already-successful task with "error"
-    success_count = sum(1 for _, c in selected if c.get("status") == "success" and c.get("filepath"))
+    success_count = sum(
+        1 for _, c in selected if c.get("status") == "success" and c.get("filepath")
+    )
     for idx, clip in selected:
         try:
             out = _export_clip(
@@ -303,9 +301,7 @@ def export_clips_task(
             was_success = clip.get("status") == "success"
             clip["filepath"] = out.get("video", "")
             clip["thumbnail_path"] = out.get("thumbnail", "")
-            clip["export_start_time_s"] = out.get(
-                "export_start", clip.get("start_time_s", 0)
-            )
+            clip["export_start_time_s"] = out.get("export_start", clip.get("start_time_s", 0))
             clip["export_end_time_s"] = out.get("export_end", clip.get("end_time_s", 0))
             clip["status"] = "success"
             success_count += 1
@@ -329,9 +325,7 @@ def export_clips_task(
                     fc = fresh_clips[idx]
                     fc["status"] = exported.get("status", fc.get("status"))
                     fc["filepath"] = exported.get("filepath", fc.get("filepath"))
-                    fc["thumbnail_path"] = exported.get(
-                        "thumbnail_path", fc.get("thumbnail_path")
-                    )
+                    fc["thumbnail_path"] = exported.get("thumbnail_path", fc.get("thumbnail_path"))
                     fc["export_start_time_s"] = exported.get(
                         "export_start_time_s", fc.get("export_start_time_s")
                     )
@@ -346,9 +340,7 @@ def export_clips_task(
     manifest_path = os.path.join(output_dir, "manifest.json")
     try:
         with open(manifest_path, "w", encoding="utf-8") as f:
-            json.dump(
-                {"task_id": task_id, "clips": clips}, f, ensure_ascii=False, indent=2
-            )
+            json.dump({"task_id": task_id, "clips": clips}, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logging.warning("export_clips_task: failed to write manifest.json: %s", e)
 

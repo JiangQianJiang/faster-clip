@@ -163,14 +163,12 @@ async def patch_transcript(task_id: str, body: dict):
     if after_save == "reanalyze":
         from app.config import settings
 
-        resolved_llm_api_key = (
-            (settings.llm_api_key or "").strip()
-            or str(body.get("llm_api_key") or "").strip()
-        )
-        resolved_asr_api_key = (
-            (settings.asr_api_key or "").strip()
-            or str(body.get("asr_api_key") or "").strip()
-        )
+        resolved_llm_api_key = (settings.llm_api_key or "").strip() or str(
+            body.get("llm_api_key") or ""
+        ).strip()
+        resolved_asr_api_key = (settings.asr_api_key or "").strip() or str(
+            body.get("asr_api_key") or ""
+        ).strip()
         if not resolved_llm_api_key:
             raise HTTPException(
                 422,
@@ -195,9 +193,7 @@ async def patch_transcript(task_id: str, body: dict):
             )
 
         # Phase 1: Prepare temp file (no side effects yet)
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(output_dir), prefix="transcript_", suffix=".json"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(output_dir), prefix="transcript_", suffix=".json")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(segments, f, ensure_ascii=False, indent=2)
@@ -261,9 +257,7 @@ async def patch_transcript(task_id: str, body: dict):
         for i, clip in enumerate(clips):
             if clip.get("status") == "failed":
                 continue
-            window_start = clip.get(
-                "export_start_time_s", clip.get("start_time_s", 0.0)
-            )
+            window_start = clip.get("export_start_time_s", clip.get("start_time_s", 0.0))
             window_end = clip.get("export_end_time_s", clip.get("end_time_s", 0.0))
             generate_clip_subtitles(
                 segments,
@@ -307,7 +301,11 @@ async def patch_transcript(task_id: str, body: dict):
 
     # Refresh to get updated transcript_version
     task_refreshed = get_task(task_id)
-    new_version = task_refreshed.get("transcript_version", base_version + 1) if task_refreshed else base_version + 1
+    new_version = (
+        task_refreshed.get("transcript_version", base_version + 1)
+        if task_refreshed
+        else base_version + 1
+    )
 
     response = {
         "task_id": task_id,

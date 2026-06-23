@@ -68,9 +68,7 @@ def _generate_preview(video_path: str, container: str) -> str | None:
         return preview_path  # already generated
 
     logger = logging.getLogger(__name__)
-    logger.info(
-        "Generating browser-playable preview for %s → %s", video_path, preview_path
-    )
+    logger.info("Generating browser-playable preview for %s → %s", video_path, preview_path)
 
     cmd = [
         "ffmpeg",
@@ -103,9 +101,7 @@ def _generate_preview(video_path: str, container: str) -> str | None:
         return None
 
 
-def run(
-    task_id: str, video_path: str, config: dict, llm_api_key: str, asr_api_key: str
-):
+def run(task_id: str, video_path: str, config: dict, llm_api_key: str, asr_api_key: str):
     try:
         info = probe(video_path)
     except Exception as e:
@@ -142,9 +138,7 @@ def run(
             with open(transcript_path, encoding="utf-8") as f:
                 segments = json.load(f)
             segments, _warnings = sanitize_transcript_timeline(segments)
-            update_task_status(
-                task_id, "processing", subtitle_segment_count=len(segments)
-            )
+            update_task_status(task_id, "processing", subtitle_segment_count=len(segments))
         except Exception:
             segments = None
 
@@ -177,9 +171,7 @@ def run(
                     os.unlink(audio_path)
 
         if not segments:
-            raise StageError(
-                "extracting_subtitles", "无法获取字幕：无内嵌字幕且未配置 ASR API key"
-            )
+            raise StageError("extracting_subtitles", "无法获取字幕：无内嵌字幕且未配置 ASR API key")
 
         segments, _warnings = sanitize_transcript_timeline(segments)
         if not segments:
@@ -264,8 +256,6 @@ def run(
                     "status": "success",
                     "filepath": out["video"],
                     "thumbnail_path": out["thumbnail"],
-
-
                 }
             )
             all_failed = False
@@ -461,11 +451,7 @@ def _export_clip(
             },
         )
         # Capture tail of stderr — ffmpeg prints version first, error last
-        err_tail = (
-            result.stderr.strip()[-500:]
-            if result.stderr.strip()
-            else "(no stderr output)"
-        )
+        err_tail = result.stderr.strip()[-500:] if result.stderr.strip() else "(no stderr output)"
         raise RuntimeError(f"ffmpeg 导出失败: {err_tail}")
 
     # Thumbnail at 320x180 (16:9)

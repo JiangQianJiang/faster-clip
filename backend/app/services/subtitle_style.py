@@ -101,9 +101,7 @@ def get_preset(name: str, *, _path: str | None = None) -> dict:
     """
     presets = _load_presets(_path)
     if name not in presets:
-        raise ValueError(
-            f"Unknown preset '{name}'. Available: {', '.join(sorted(presets.keys()))}"
-        )
+        raise ValueError(f"Unknown preset '{name}'. Available: {', '.join(sorted(presets.keys()))}")
     return dict(presets[name])
 
 
@@ -156,9 +154,7 @@ def build_force_style(
                 try:
                     num = int(value)
                 except (ValueError, TypeError):
-                    raise ValueError(
-                        f"Override '{key}' value '{value}' is not a valid integer"
-                    )
+                    raise ValueError(f"Override '{key}' value '{value}' is not a valid integer")
                 _validate_override(key, num)
                 merged[key] = num  # normalize to int
                 continue

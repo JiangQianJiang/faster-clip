@@ -97,9 +97,9 @@ class Settings:
         self.presets_path: str = str(
             _env_or_file("PRESETS_PATH", file_settings, "runtime.presets_path", "")
         )
-        self.log_format: str = str(
-            _env_or_file("LOG_FORMAT", file_settings, "logging.format", "")
-        ).strip().lower()
+        self.log_format: str = (
+            str(_env_or_file("LOG_FORMAT", file_settings, "logging.format", "")).strip().lower()
+        )
 
         # Rate limits
         self.rate_limit_auth_fail: int = _int_env_or_file(
@@ -120,7 +120,9 @@ class Settings:
             "DEFAULT_ASR_PROVIDER", file_settings, "asr.provider"
         )
         self.asr_api_key: str = str(_env_or_file("ASR_API_KEY", file_settings, "asr.api_key", ""))
-        self.asr_base_url: str = str(_env_or_file("ASR_BASE_URL", file_settings, "asr.base_url", ""))
+        self.asr_base_url: str = str(
+            _env_or_file("ASR_BASE_URL", file_settings, "asr.base_url", "")
+        )
         self.asr_model: str = str(_env_or_file("ASR_MODEL", file_settings, "asr.model", ""))
         self.qwen_poll_timeout_seconds: int = _int_env_or_file(
             "QWEN_POLL_TIMEOUT", file_settings, "asr.qwen_poll_timeout_seconds", 600
@@ -128,7 +130,9 @@ class Settings:
 
         # LLM
         self.llm_api_key: str = str(_env_or_file("LLM_API_KEY", file_settings, "llm.api_key", ""))
-        self.llm_base_url: str = str(_env_or_file("LLM_BASE_URL", file_settings, "llm.base_url", ""))
+        self.llm_base_url: str = str(
+            _env_or_file("LLM_BASE_URL", file_settings, "llm.base_url", "")
+        )
         self.llm_model: str = str(_env_or_file("LLM_MODEL", file_settings, "llm.model", ""))
 
         # Security
@@ -175,9 +179,7 @@ def _validate_startup_config() -> None:
 
     if not settings.api_key_encryption_key:
         if not is_test:
-            errors.append(
-                "缺少必需的环境变量 API_KEY_ENCRYPTION_KEY，生成方式见 .env.example"
-            )
+            errors.append("缺少必需的环境变量 API_KEY_ENCRYPTION_KEY，生成方式见 .env.example")
 
     if errors:
         msg = "启动配置校验失败:\n" + "\n".join(f"  - {e}" for e in errors)

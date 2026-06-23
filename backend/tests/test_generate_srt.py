@@ -249,7 +249,6 @@ class TestExportPreservesSegments:
 # ── helpers for extracting cue bodies from subtitle formats ──────────────
 
 
-
 def _extract_srt_bodies(content: str) -> list[str]:
     """Extract text bodies from SRT content, in order."""
     bodies: list[str] = []

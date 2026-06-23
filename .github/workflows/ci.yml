@@ -7,7 +7,24 @@ on:
     branches: [main]
 
 jobs:
-  backend:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Format check
+        run: ruff format --check .
+        working-directory: backend
+
+      - name: Lint check
+        run: ruff check .
+        working-directory: backend
+
+  test:
     runs-on: ubuntu-latest
 
     steps:
@@ -15,9 +32,6 @@ jobs:
 
       - name: Build image
         run: docker build -t live-clipper-backend ./backend
-
-      - name: Format check
-        run: docker run --rm -e RUFF_NO_CACHE=true live-clipper-backend sh -c "pip install ruff && python -m ruff format --check ."
 
       - name: Test
         run: >

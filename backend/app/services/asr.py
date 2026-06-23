@@ -195,9 +195,7 @@ def _transcribe_whisper(
                                 "start_time_s": round(
                                     float(_get_attr(s, "start", 0.0)) + offset, 3
                                 ),
-                                "end_time_s": round(
-                                    float(_get_attr(s, "end", 0.0)) + offset, 3
-                                ),
+                                "end_time_s": round(float(_get_attr(s, "end", 0.0)) + offset, 3),
                                 "text": str(_get_attr(s, "text", "")).strip(),
                                 "confidence": confidence,
                             }
@@ -254,9 +252,7 @@ def _transcribe_qwen(
     if resp.status_code in (401, 403):
         raise AuthError(f"Qwen API key 无效: {resp.text[:300]}")
     if resp.status_code != 200:
-        raise ASRError(
-            f"Qwen ASR 文件上传失败 (HTTP {resp.status_code}): {resp.text[:300]}"
-        )
+        raise ASRError(f"Qwen ASR 文件上传失败 (HTTP {resp.status_code}): {resp.text[:300]}")
 
     try:
         upload_data = resp.json()
@@ -270,9 +266,7 @@ def _transcribe_qwen(
     # Get the fresh presigned URL for the uploaded file
     file_id = uploaded[0]["file_id"]
     try:
-        resp = requests.get(
-            f"{api_base}/api/v1/files/{file_id}", headers=auth_headers, timeout=15
-        )
+        resp = requests.get(f"{api_base}/api/v1/files/{file_id}", headers=auth_headers, timeout=15)
         file_url = resp.json()["data"]["url"]
     except Exception as e:
         raise ASRError(f"Qwen ASR 获取文件 URL 失败: {e}")
@@ -306,9 +300,7 @@ def _transcribe_qwen(
     if resp.status_code in (401, 403):
         raise AuthError(f"Qwen API key 无效: {resp.text[:300]}")
     if resp.status_code != 200:
-        raise ASRError(
-            f"Qwen ASR 提交失败 (HTTP {resp.status_code}): {resp.text[:300]}"
-        )
+        raise ASRError(f"Qwen ASR 提交失败 (HTTP {resp.status_code}): {resp.text[:300]}")
 
     try:
         data = resp.json()
@@ -358,9 +350,7 @@ def _transcribe_qwen(
                 raise ASRError(f"Qwen ASR 获取转录结果失败: {e}")
             return _parse_qwen_results(result_json)
         elif status in ("FAILED", "UNKNOWN"):
-            raise ASRError(
-                f"Qwen ASR 任务失败 ({status}): {output.get('message', '未知错误')}"
-            )
+            raise ASRError(f"Qwen ASR 任务失败 ({status}): {output.get('message', '未知错误')}")
 
         last_error = None
 

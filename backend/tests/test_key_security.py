@@ -37,9 +37,7 @@ def test_install_log_filter_redacts_key_in_message():
 
     install_log_filter()
 
-    record = _make_record(
-        "Using key sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA for LLM"
-    )
+    record = _make_record("Using key sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA for LLM")
     assert "sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" not in record.msg
     assert "***" in record.msg
     assert "Using key *** for LLM" in record.msg
@@ -301,9 +299,7 @@ def test_dict_style_logging_redacts_key():
     handler.setLevel(logging.DEBUG)
     logging.root.addHandler(handler)
 
-    logging.root.info(
-        "key %(api_key)s", {"api_key": "sk-dictsecret1234567890123456789012345"}
-    )
+    logging.root.info("key %(api_key)s", {"api_key": "sk-dictsecret1234567890123456789012345"})
     handler.flush()
     output = buf.getvalue()
 

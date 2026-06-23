@@ -10,14 +10,10 @@ from app.tools.base import Tool, ToolResult
 OUTPUT_DIR = Path("data/output")
 
 _MERGE_MIN_OVERLAP = 0.5  # ratio — clips with ≥50% overlap are considered the same
-_MERGE_TIGHT_OVERLAP = (
-    0.85  # ratio — only keep "success" if overlap ≥85%, else reset to pending
-)
+_MERGE_TIGHT_OVERLAP = 0.85  # ratio — only keep "success" if overlap ≥85%, else reset to pending
 
 
-def _merge_clips_with_existing(
-    new_clips: list[dict], existing_clips: list[dict]
-) -> list[dict]:
+def _merge_clips_with_existing(new_clips: list[dict], existing_clips: list[dict]) -> list[dict]:
     """Preserve export metadata (status, filepath, download_url, etc.)
     from existing clips that match newly-analyzed clips by timestamp.
 
@@ -157,9 +153,7 @@ class AnalyzeHighlights(Tool):
 
         task = get_task(task_id)
         if task is None:
-            return ToolResult(
-                success=False, error="Task not found", user_message="任务不存在"
-            )
+            return ToolResult(success=False, error="Task not found", user_message="任务不存在")
 
         # Guard: reject mutations while task is processing (any stage)
         if task.get("status") in ("pending", "queued", "processing"):
@@ -248,8 +242,7 @@ class AnalyzeHighlights(Tool):
                 seg
                 for seg in segments
                 if any(
-                    r[0] <= seg["end_time_s"] and seg["start_time_s"] <= r[1]
-                    for r in valid_ranges
+                    r[0] <= seg["end_time_s"] and seg["start_time_s"] <= r[1] for r in valid_ranges
                 )
             ]
             if not analysis_segments:
@@ -297,9 +290,7 @@ class AnalyzeHighlights(Tool):
                 success=False, error=str(e), user_message="LLM 返回解析失败，可以重试"
             )
         except LLMError as e:
-            return ToolResult(
-                success=False, error=str(e), user_message=f"分析失败: {e}"
-            )
+            return ToolResult(success=False, error=str(e), user_message=f"分析失败: {e}")
 
         # Get actual video duration for validation
         video_duration = float("inf")
@@ -325,10 +316,7 @@ class AnalyzeHighlights(Tool):
             validated = [
                 c
                 for c in validated
-                if any(
-                    r[0] <= c["start_time_s"] and c["end_time_s"] <= r[1]
-                    for r in valid_ranges
-                )
+                if any(r[0] <= c["start_time_s"] and c["end_time_s"] <= r[1] for r in valid_ranges)
             ]
 
         from app.models.task import update_task_status

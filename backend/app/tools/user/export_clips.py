@@ -12,7 +12,9 @@ OUTPUT_DIR = Path("data/output")
 
 class ExportClips(Tool):
     name = "export_clips"
-    description = "Export one or more clips to MP4 files. Can optionally burn subtitles into the video."
+    description = (
+        "Export one or more clips to MP4 files. Can optionally burn subtitles into the video."
+    )
     user_facing = True
     requires_state = ["clips_ready"]
     produces_state = "exporting"
@@ -46,9 +48,7 @@ class ExportClips(Tool):
 
         task = get_task(task_id)
         if task is None:
-            return ToolResult(
-                success=False, error="Task not found", user_message="任务不存在"
-            )
+            return ToolResult(success=False, error="Task not found", user_message="任务不存在")
 
         # Guard: reject mutations while task is processing, unless in ai_exporting stage
         if (
@@ -95,9 +95,7 @@ class ExportClips(Tool):
                 seen.add(i)
                 selected_indices.append(i)
         else:
-            selected_indices = [
-                i for i, c in enumerate(clips) if c.get("status") != "failed"
-            ]
+            selected_indices = [i for i, c in enumerate(clips) if c.get("status") != "failed"]
 
         if not selected_indices:
             return ToolResult(
@@ -122,12 +120,8 @@ class ExportClips(Tool):
                 task_id=f"export_{task_id}",
             )
         except Exception as e:
-            update_task_status(
-                task_id, "error", failed_stage="ai_exporting", error_message=str(e)
-            )
-            return ToolResult(
-                success=False, error=str(e), user_message=f"导出任务入队失败: {e}"
-            )
+            update_task_status(task_id, "error", failed_stage="ai_exporting", error_message=str(e))
+            return ToolResult(success=False, error=str(e), user_message=f"导出任务入队失败: {e}")
 
         return ToolResult(
             success=True,

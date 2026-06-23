@@ -92,11 +92,7 @@ class GetTranscript(Tool):
             },
             user_message=(
                 f"字幕共 {total} 条"
-                + (
-                    f"（返回 {len(paginated)} 条，offset={offset}）"
-                    if limit > 0
-                    else ""
-                )
+                + (f"（返回 {len(paginated)} 条，offset={offset}）" if limit > 0 else "")
             ),
         )
 

@@ -188,9 +188,7 @@ def test_outline_color_override():
     with tempfile.TemporaryDirectory() as tmp:
         preset_path = os.path.join(tmp, "subtitle_styles.json")
         _write_presets(preset_path, SAMPLE_PRESETS)
-        result = build_force_style(
-            "douyin", {"outline_color": "&H000000"}, _path=preset_path
-        )
+        result = build_force_style("douyin", {"outline_color": "&H000000"}, _path=preset_path)
         assert "OutlineColour=&H000000" in result
 
 

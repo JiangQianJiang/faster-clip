@@ -25,7 +25,12 @@ def _make_mock_subprocess(returncode=0, stdout="{}", stderr=""):
 
 
 def _mock_ffprobe_output(
-    *, codec_name=None, width=None, height=None, duration=60, container="flv",
+    *,
+    codec_name=None,
+    width=None,
+    height=None,
+    duration=60,
+    container="flv",
     format_tags=None,
 ):
     """Build realistic ffprobe JSON for a single video stream."""
@@ -108,9 +113,7 @@ class TestProbeRejectsUnreadableStream:
 class TestProbeAcceptsValidStream:
     def test_h264_mp4(self):
         """Standard H.264 MP4 passes probe."""
-        out = _mock_ffprobe_output(
-            codec_name="h264", width=1920, height=1080, container="mp4"
-        )
+        out = _mock_ffprobe_output(codec_name="h264", width=1920, height=1080, container="mp4")
         with patch("subprocess.run", return_value=_make_mock_subprocess(stdout=out)):
             info = probe("/fake/video.mp4")
             assert info.codec == "h264"
@@ -120,9 +123,7 @@ class TestProbeAcceptsValidStream:
 
     def test_hevc_mp4(self):
         """HEVC in MP4 (standard container) passes probe."""
-        out = _mock_ffprobe_output(
-            codec_name="hevc", width=3840, height=2160, container="mp4"
-        )
+        out = _mock_ffprobe_output(codec_name="hevc", width=3840, height=2160, container="mp4")
         with patch("subprocess.run", return_value=_make_mock_subprocess(stdout=out)):
             info = probe("/fake/video.mp4")
             assert info.codec == "hevc"
@@ -131,9 +132,7 @@ class TestProbeAcceptsValidStream:
 
     def test_h264_flv(self):
         """H.264 in FLV (standard) passes probe."""
-        out = _mock_ffprobe_output(
-            codec_name="h264", width=1280, height=720, container="flv"
-        )
+        out = _mock_ffprobe_output(codec_name="h264", width=1280, height=720, container="flv")
         with patch("subprocess.run", return_value=_make_mock_subprocess(stdout=out)):
             info = probe("/fake/video.flv")
             assert info.codec == "h264"

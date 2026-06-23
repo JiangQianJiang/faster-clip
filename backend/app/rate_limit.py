@@ -60,7 +60,9 @@ def _get_token_key(request: Request) -> str:
     return f"ip:{_get_client_ip(request)}"
 
 
-def _check_limit(r: redis.Redis, key_prefix: str, identifier: str, max_requests: int) -> tuple[bool, int]:
+def _check_limit(
+    r: redis.Redis, key_prefix: str, identifier: str, max_requests: int
+) -> tuple[bool, int]:
     """Check if request is within rate limit. Returns (allowed, retry_after_seconds)."""
     now_ms = int(time.time() * 1000)
     window_ms = _WINDOW_SECONDS * 1000

@@ -9,9 +9,7 @@ from app.tools.base import Tool, ToolResult
 
 class GenerateThumbnail(Tool):
     name = "generate_thumbnail"
-    description = (
-        "Generate a JPEG thumbnail image from a video at a specified timestamp."
-    )
+    description = "Generate a JPEG thumbnail image from a video at a specified timestamp."
     parameters = {
         "type": "object",
         "properties": {
@@ -79,9 +77,7 @@ class GenerateThumbnail(Tool):
                 user_message="缩略图生成超时",
             )
         except Exception as e:
-            return ToolResult(
-                success=False, error=str(e), user_message=f"缩略图生成异常: {e}"
-            )
+            return ToolResult(success=False, error=str(e), user_message=f"缩略图生成异常: {e}")
 
 
 _generate_thumbnail = GenerateThumbnail()

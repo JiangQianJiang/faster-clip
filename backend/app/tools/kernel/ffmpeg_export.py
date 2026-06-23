@@ -164,9 +164,7 @@ class FFmpegExport(Tool):
                     output_path,
                 ]
 
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=ffmpeg_timeout
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=ffmpeg_timeout)
 
             # Clean up temp srt
             if burn_subtitle:
@@ -175,9 +173,7 @@ class FFmpegExport(Tool):
                     os.unlink(srt_path)
 
             if result.returncode != 0:
-                stderr = (
-                    result.stderr[-300:] if result.stderr else "ffmpeg 返回非零退出码"
-                )
+                stderr = result.stderr[-300:] if result.stderr else "ffmpeg 返回非零退出码"
                 return ToolResult(
                     success=False,
                     error=stderr,

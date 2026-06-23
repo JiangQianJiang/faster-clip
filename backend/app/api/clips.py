@@ -50,10 +50,7 @@ async def download_clip(task_id: str, clip_index: str):
 
     abs_filepath = os.path.abspath(filepath)
     task_output_root = os.path.abspath(str(OUTPUT_DIR / task_id))
-    if (
-        not abs_filepath.startswith(task_output_root + os.sep)
-        and abs_filepath != task_output_root
-    ):
+    if not abs_filepath.startswith(task_output_root + os.sep) and abs_filepath != task_output_root:
         raise HTTPException(400, detail="无效的片段路径")
 
     if not os.path.isfile(abs_filepath):
@@ -96,17 +93,13 @@ async def thumbnail_clip(task_id: str, clip_index: str):
 
     abs_path = os.path.abspath(thumb_path)
     task_output_root = os.path.abspath(str(OUTPUT_DIR / task_id))
-    if (
-        not abs_path.startswith(task_output_root + os.sep)
-        and abs_path != task_output_root
-    ):
+    if not abs_path.startswith(task_output_root + os.sep) and abs_path != task_output_root:
         raise HTTPException(400, detail="无效的缩略图路径")
 
     if not os.path.isfile(abs_path):
         raise HTTPException(404, detail="缩略图文件不存在")
 
     return FileResponse(path=abs_path, media_type="image/jpeg")
-
 
 
 @router.get("/{task_id}/clips/{clip_index}/subtitles")
@@ -126,9 +119,7 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
 
     supported = {"srt", "vtt", "ass"}
     if format not in supported:
-        raise HTTPException(
-            400, detail=f"不支持的字幕格式: {format}，支持: srt, vtt, ass"
-        )
+        raise HTTPException(400, detail=f"不支持的字幕格式: {format}，支持: srt, vtt, ass")
 
     task = get_task(task_id)
     if task is None:
@@ -149,10 +140,7 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
     sub_path = OUTPUT_DIR / task_id / f"clip_{idx:03d}.{format}"
     abs_path = os.path.abspath(str(sub_path))
     task_output_root = os.path.abspath(str(OUTPUT_DIR / task_id))
-    if (
-        not abs_path.startswith(task_output_root + os.sep)
-        and abs_path != task_output_root
-    ):
+    if not abs_path.startswith(task_output_root + os.sep) and abs_path != task_output_root:
         raise HTTPException(400, detail="无效的字幕路径")
 
     transcript_path = str(OUTPUT_DIR / task_id / "transcript.json")
@@ -165,9 +153,7 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
                 all_segments = json.load(f)
             window_start = clip.get("export_start_time_s", 0)
             window_end = clip.get("export_end_time_s", 0)
-            filtered = get_clip_subtitle_segments(
-                all_segments, window_start, window_end
-            )
+            filtered = get_clip_subtitle_segments(all_segments, window_start, window_end)
             from app.services.subtitle import (
                 segments_to_ass,
                 segments_to_srt,

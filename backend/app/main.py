@@ -141,6 +141,7 @@ def _secure_response(
 
 # Standardized error handlers
 
+
 @app.exception_handler(401)
 async def unauthorized_handler(request: Request, exc: Exception):
     return _secure_response(

@@ -57,9 +57,7 @@ def test_non_retryable_error_marks_error_directly():
         process_video_task.run("t2", "/v.mp4", {}, _enc("sk-llm"), _enc("sk-asr"))
 
     mock_retry.assert_not_called()
-    error_calls = [
-        c for c in mock_update.call_args_list if len(c[0]) >= 2 and c[0][1] == "error"
-    ]
+    error_calls = [c for c in mock_update.call_args_list if len(c[0]) >= 2 and c[0][1] == "error"]
     assert len(error_calls) == 1
     assert error_calls[0][1]["failed_stage"] == "analyzing"
 
@@ -76,9 +74,7 @@ def test_max_retries_exceeded_marks_error():
 
     with (
         patch.object(process_video_task, "retry", mock_retry),
-        patch.object(
-            process_video_task, "MaxRetriesExceededError", MaxRetriesExceededError
-        ),
+        patch.object(process_video_task, "MaxRetriesExceededError", MaxRetriesExceededError),
         patch(
             "app.worker.celery_app._run_pipeline",
             side_effect=StageError("extracting_subtitles", "timeout"),
@@ -87,9 +83,7 @@ def test_max_retries_exceeded_marks_error():
     ):
         process_video_task.run("t3", "/v.mp4", {}, _enc("sk-llm"), _enc("sk-asr"))
 
-    error_calls = [
-        c for c in mock_update.call_args_list if len(c[0]) >= 2 and c[0][1] == "error"
-    ]
+    error_calls = [c for c in mock_update.call_args_list if len(c[0]) >= 2 and c[0][1] == "error"]
     assert len(error_calls) == 1
 
 
@@ -108,9 +102,7 @@ def test_successful_pipeline_no_error_or_retry():
         process_video_task.run("t4", "/v.mp4", {}, _enc("sk-llm"), _enc("sk-asr"))
 
     mock_retry.assert_not_called()
-    error_calls = [
-        c for c in mock_update.call_args_list if len(c[0]) >= 2 and c[0][1] == "error"
-    ]
+    error_calls = [c for c in mock_update.call_args_list if len(c[0]) >= 2 and c[0][1] == "error"]
     assert len(error_calls) == 0
 
 
@@ -137,9 +129,7 @@ def test_retries_exhausted_marks_error_directly():
         process_video_task.request.retries = orig_retries
 
     mock_retry.assert_not_called()
-    error_calls = [
-        c for c in mock_update.call_args_list if len(c[0]) >= 2 and c[0][1] == "error"
-    ]
+    error_calls = [c for c in mock_update.call_args_list if len(c[0]) >= 2 and c[0][1] == "error"]
     assert len(error_calls) == 1
     assert error_calls[0][1]["failed_stage"] == "analyzing"
 
@@ -266,9 +256,7 @@ def test_export_clips_task_total_failure():
             "app.models.task.update_task_status",
             side_effect=lambda tid, s, **kw: fake_statuses.append((s, kw)),
         ),
-        patch(
-            "app.worker.pipeline._export_clip", side_effect=Exception("ffmpeg crash")
-        ),
+        patch("app.worker.pipeline._export_clip", side_effect=Exception("ffmpeg crash")),
         patch("app.services.ffprobe.probe", return_value=mock_probe),
         patch("os.makedirs"),
         patch("os.path.isfile", return_value=False),

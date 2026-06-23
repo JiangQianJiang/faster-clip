@@ -62,9 +62,7 @@ class RunASRUser(Tool):
 
         task = get_task(task_id)
         if task is None:
-            return ToolResult(
-                success=False, error="Task not found", user_message="任务不存在"
-            )
+            return ToolResult(success=False, error="Task not found", user_message="任务不存在")
 
         if task.get("status") in ("pending", "queued", "processing"):
             return ToolResult(
@@ -85,10 +83,7 @@ class RunASRUser(Tool):
 
         # Resolve provider: override > config > default
         resolved_provider = (
-            provider
-            or config.get("asr_provider")
-            or settings.default_asr_provider
-            or ""
+            provider or config.get("asr_provider") or settings.default_asr_provider or ""
         )
 
         # Resolve model: override > config > sensible default per provider
@@ -115,7 +110,9 @@ class RunASRUser(Tool):
             )
 
         # Resolve base_url
-        resolved_base_url = base_url or config.get("asr_base_url", "") or settings.asr_base_url or None
+        resolved_base_url = (
+            base_url or config.get("asr_base_url", "") or settings.asr_base_url or None
+        )
 
         # Run ASR
         from app.services.asr import (

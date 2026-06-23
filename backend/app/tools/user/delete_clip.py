@@ -15,9 +15,7 @@ def _cleanup_sidecar_files(task_id: str, clip_index: int) -> list[str]:
     task_output_dir = os.path.realpath(OUTPUT_DIR / task_id)
     removed = []
     for ext in ("srt", "vtt", "ass"):
-        sidecar = os.path.join(
-            str(OUTPUT_DIR / task_id), f"clip_{clip_index:03d}.{ext}"
-        )
+        sidecar = os.path.join(str(OUTPUT_DIR / task_id), f"clip_{clip_index:03d}.{ext}")
         real = os.path.realpath(sidecar)
         if not real.startswith(task_output_dir + os.sep) and real != task_output_dir:
             continue
@@ -30,9 +28,7 @@ def _cleanup_sidecar_files(task_id: str, clip_index: int) -> list[str]:
     return removed
 
 
-def _cleanup_clip_files(
-    task_id: str, clip: dict, clip_index: int | None = None
-) -> list[str]:
+def _cleanup_clip_files(task_id: str, clip: dict, clip_index: int | None = None) -> list[str]:
     """Delete exported files for a clip, only within the task output directory.
 
     Cleans up MP4, thumbnail, and subtitle sidecar files (SRT/VTT/ASS).
@@ -59,14 +55,9 @@ def _cleanup_clip_files(
     # Subtitle sidecars for this clip index
     if clip_index is not None:
         for ext in ("srt", "vtt", "ass"):
-            sidecar = os.path.join(
-                str(OUTPUT_DIR / task_id), f"clip_{clip_index:03d}.{ext}"
-            )
+            sidecar = os.path.join(str(OUTPUT_DIR / task_id), f"clip_{clip_index:03d}.{ext}")
             real = os.path.realpath(sidecar)
-            if (
-                not real.startswith(task_output_dir + os.sep)
-                and real != task_output_dir
-            ):
+            if not real.startswith(task_output_dir + os.sep) and real != task_output_dir:
                 continue
             if os.path.isfile(real):
                 try:

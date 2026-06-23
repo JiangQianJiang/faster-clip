@@ -84,17 +84,11 @@ class BurnSubtitles(Tool):
             from app.config import settings
 
             ffmpeg_timeout = settings.ffmpeg_timeout_seconds
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=ffmpeg_timeout
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=ffmpeg_timeout)
 
             if result.returncode != 0:
-                stderr = (
-                    result.stderr[-300:] if result.stderr else "ffmpeg 返回非零退出码"
-                )
-                return ToolResult(
-                    success=False, error=stderr, user_message="字幕烧录失败"
-                )
+                stderr = result.stderr[-300:] if result.stderr else "ffmpeg 返回非零退出码"
+                return ToolResult(success=False, error=stderr, user_message="字幕烧录失败")
 
             return ToolResult(
                 success=True,
@@ -102,13 +96,9 @@ class BurnSubtitles(Tool):
                 user_message="字幕烧录完成",
             )
         except subprocess.TimeoutExpired:
-            return ToolResult(
-                success=False, error="ffmpeg timed out", user_message="字幕烧录超时"
-            )
+            return ToolResult(success=False, error="ffmpeg timed out", user_message="字幕烧录超时")
         except Exception as e:
-            return ToolResult(
-                success=False, error=str(e), user_message=f"字幕烧录异常: {e}"
-            )
+            return ToolResult(success=False, error=str(e), user_message=f"字幕烧录异常: {e}")
 
 
 _burn_subtitles = BurnSubtitles()

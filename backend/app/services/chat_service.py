@@ -108,6 +108,7 @@ def _redact_message(msg: dict) -> dict:
 
 class ChatHistoryConflict(Exception):
     """Raised when chat history cannot be saved due to a version conflict."""
+
     pass
 
 
@@ -258,8 +259,7 @@ class ChatService:
             reason = c.get("reason", "")
             status_s = c.get("status", "")
             parts.append(
-                f"  Clip {i + 1}: [{start:.0f}s-{end:.0f}s] score={score} "
-                f"{reason} ({status_s})"
+                f"  Clip {i + 1}: [{start:.0f}s-{end:.0f}s] score={score} {reason} ({status_s})"
             )
 
         parts.append("")
@@ -347,10 +347,7 @@ class ChatService:
                 next_content = next_msg.get("content", [])
                 if isinstance(next_content, list):
                     for block in next_content:
-                        if (
-                            isinstance(block, dict)
-                            and block.get("type") == "tool_result"
-                        ):
+                        if isinstance(block, dict) and block.get("type") == "tool_result":
                             try:
                                 result = json.loads(block.get("content", "{}"))
                                 if result.get("success"):
@@ -424,7 +421,12 @@ class ChatService:
                     if block.get("type") == "tool_result":
                         content = block.get("content", "")
                         if isinstance(content, str) and len(content) > max_chars:
-                            block = {**block, "content": content[:max_chars] + f"\n... [截断，原 {len(content)} 字符]", "_trimmed": True}
+                            block = {
+                                **block,
+                                "content": content[:max_chars]
+                                + f"\n... [截断，原 {len(content)} 字符]",
+                                "_trimmed": True,
+                            }
                     new_content.append(block)
                 msg = {**msg, "content": new_content}
             trimmed.append(msg)
@@ -511,9 +513,7 @@ class ChatService:
 
         def _filter(value):
             if isinstance(value, dict):
-                return {
-                    k: _filter(v) for k, v in value.items() if not k.startswith("_")
-                }
+                return {k: _filter(v) for k, v in value.items() if not k.startswith("_")}
             if isinstance(value, list):
                 return [_filter(v) for v in value]
             return value
@@ -625,8 +625,7 @@ class ChatService:
 
                 # --- end_turn: final text response, save and exit ---
                 if final_msg.stop_reason == "end_turn" or (
-                    final_msg.stop_reason != "tool_use"
-                    and final_msg.stop_reason is not None
+                    final_msg.stop_reason != "tool_use" and final_msg.stop_reason is not None
                 ):
                     full_text = "".join(text_parts)
                     if full_text:
@@ -727,17 +726,13 @@ class ChatService:
                         self.history.append(
                             {
                                 "role": "user",
-                                "content": [
-                                    {"type": "tool_result", **tr} for tr in tool_results
-                                ],
+                                "content": [{"type": "tool_result", **tr} for tr in tool_results],
                             }
                         )
                         await self._save_history()
                         return
 
-                    allowed, rejection_reason = self.workflow_runtime.validate_tool_call(
-                        task, tool
-                    )
+                    allowed, rejection_reason = self.workflow_runtime.validate_tool_call(task, tool)
                     if not allowed:
                         result = self.tool_executor.record_rejected_tool_call(
                             task_id=self.task_id,
@@ -785,17 +780,12 @@ class ChatService:
                     )
 
                     if result.success:
-                        self.workflow_runtime.apply_tool_success(
-                            self.task_id, tool, result
-                        )
+                        self.workflow_runtime.apply_tool_success(self.task_id, tool, result)
                     elif allowed:
-                        self.workflow_runtime.apply_tool_failure(
-                            self.task_id, tool, result
-                        )
+                        self.workflow_runtime.apply_tool_failure(self.task_id, tool, result)
 
                     if result.success and (
-                        getattr(tool, "requires_checkpoint", False)
-                        or tool_name in CHECKPOINT_TOOLS
+                        getattr(tool, "requires_checkpoint", False) or tool_name in CHECKPOINT_TOOLS
                     ):
                         # Gate checkpoint emission on the active mode.
                         if self.checkpoint_mode == "confirm" or (
@@ -813,17 +803,13 @@ class ChatService:
                 self.history.append(
                     {
                         "role": "user",
-                        "content": [
-                            {"type": "tool_result", **tr} for tr in tool_results
-                        ],
+                        "content": [{"type": "tool_result", **tr} for tr in tool_results],
                     }
                 )
 
                 # Checkpoint: pause and let user review
                 if checkpoint_hit:
-                    actions = ChatService._checkpoint_actions(
-                        successful_checkpoint_tools
-                    )
+                    actions = ChatService._checkpoint_actions(successful_checkpoint_tools)
                     _logger.info(
                         "checkpoint",
                         extra={
@@ -868,11 +854,7 @@ class ChatService:
         except Exception as e:
             logging.exception("ChatService error for task %s", self.task_id)
             error_msg = str(e)
-            if (
-                "401" in error_msg
-                or "403" in error_msg
-                or "unauthorized" in error_msg.lower()
-            ):
+            if "401" in error_msg or "403" in error_msg or "unauthorized" in error_msg.lower():
                 user_msg = "LLM 认证失败，请检查 API Key 配置"
             elif "timeout" in error_msg.lower() or "connection" in error_msg.lower():
                 user_msg = "LLM 服务连接超时，请检查网络或稍后重试"

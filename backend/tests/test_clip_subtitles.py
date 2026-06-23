@@ -80,9 +80,7 @@ class TestDownloadSubtitle:
         try:
             _setup_temp_db(db_path, task_id, [_CLIP_SUCCESS])
             output_dir = os.path.join("data", "output", task_id)
-            _write_subtitle_file(
-                output_dir, 0, "srt", "1\n00:00:00,000 --> 00:00:05,000\nHello\n"
-            )
+            _write_subtitle_file(output_dir, 0, "srt", "1\n00:00:00,000 --> 00:00:05,000\nHello\n")
             _write_subtitle_file(
                 output_dir,
                 0,
@@ -155,9 +153,7 @@ class TestDownloadSubtitle:
         try:
             _setup_temp_db(db_path, "00000000-0000-0000-0000-000000000000", [])
             client = _make_client()
-            resp = client.get(
-                "/api/tasks/99999999-9999-9999-9999-999999999999/clips/0/subtitles"
-            )
+            resp = client.get("/api/tasks/99999999-9999-9999-9999-999999999999/clips/0/subtitles")
             assert resp.status_code == 404
         finally:
             os.unlink(db_path)

@@ -9,6 +9,7 @@ import redis
 
 _logger = logging.getLogger("app.chat_lock")
 
+
 def _lock_ttl() -> int:
     from app.config import settings
 
@@ -51,6 +52,7 @@ end
 
 class ChatLockUnavailable(Exception):
     """Raised when the lock service (Redis) is unavailable."""
+
     pass
 
 
@@ -74,9 +76,7 @@ class ChatLock:
         self._redis = _get_redis()
         try:
             # SET NX (only if not exists) with TTL
-            acquired = self._redis.set(
-                self.lock_key, self.owner, nx=True, ex=_lock_ttl()
-            )
+            acquired = self._redis.set(self.lock_key, self.owner, nx=True, ex=_lock_ttl())
             if acquired:
                 self._acquired = True
                 _logger.info(
@@ -101,9 +101,7 @@ class ChatLock:
                 "chat_lock.acquire_failed",
                 extra={"task_id": self.task_id, "error": str(e)},
             )
-            raise ChatLockUnavailable(
-                "聊天服务暂时不可用，请稍后重试"
-            ) from e
+            raise ChatLockUnavailable("聊天服务暂时不可用，请稍后重试") from e
 
     async def release(self) -> bool:
         """Release the lock if we still own it."""

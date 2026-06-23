@@ -10,9 +10,7 @@ import app.models.task as task_model
 def _use_temp_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     db_path = tmp_path / "test.db"
     monkeypatch.setattr(task_model, "DB_PATH", db_path)
-    monkeypatch.setattr(
-        task_model, "_MIGRATION_LOCK_FILE", db_path.parent / ".migration.lock"
-    )
+    monkeypatch.setattr(task_model, "_MIGRATION_LOCK_FILE", db_path.parent / ".migration.lock")
     task_model.init_db()
     return db_path
 
@@ -113,9 +111,7 @@ class _FakeSuccessTool:
         self.calls = []
 
     async def execute(self, task_id: str, value: str = "", _runtime_api_key: str = ""):
-        self.calls.append(
-            {"task_id": task_id, "value": value, "runtime_key": _runtime_api_key}
-        )
+        self.calls.append({"task_id": task_id, "value": value, "runtime_key": _runtime_api_key})
         from app.tools.base import ToolResult
 
         return ToolResult(
@@ -400,9 +396,11 @@ def test_chat_service_executes_tool_via_executor_and_persists_redacted_history(
 
     with patch.object(tool, "execute", side_effect=fake_execute):
         events = []
+
         async def _collect():
             async for event in svc.chat("show transcript"):
                 events.append(event)
+
         asyncio.run(_collect())
 
     from app.models.task import get_task, list_tool_runs

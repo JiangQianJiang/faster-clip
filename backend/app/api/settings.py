@@ -1,11 +1,11 @@
+import json
 import os
 import sys
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
-import json
-from pathlib import Path
 
 from app.services.settings_file import load_settings_file, nested_get, save_settings_file
 
@@ -64,7 +64,7 @@ def _refresh_runtime_settings() -> None:
             continue
         cached = getattr(module, "settings", None)
         if hasattr(cached, "llm_api_key") and hasattr(cached, "asr_api_key"):
-            setattr(module, "settings", refreshed)
+            module.settings = refreshed
 
 
 def _merge_api_settings(file_settings: dict, update: ApiSettingsUpdate) -> dict:

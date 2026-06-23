@@ -13,9 +13,7 @@ from app.models.task import create_task, get_expired_tasks, get_task, init_db
 
 
 def _iso(days_ago: int = 0, hours_ago: int = 0) -> str:
-    return (
-        datetime.now(UTC) - timedelta(days=days_ago, hours=hours_ago)
-    ).isoformat()
+    return (datetime.now(UTC) - timedelta(days=days_ago, hours=hours_ago)).isoformat()
 
 
 def _use_temp_db(tmp_path: str):
@@ -32,9 +30,7 @@ def test_done_older_than_retention_selected():
     try:
         _use_temp_db(tmp_path)
         init_db()
-        tid = create_task(
-            tmp_path, "done_task", {"llm_base_url": "http://x", "llm_model": "m"}
-        )
+        tid = create_task(tmp_path, "done_task", {"llm_base_url": "http://x", "llm_model": "m"})
         import sqlite3
 
         conn = sqlite3.connect(tmp_path)
@@ -57,9 +53,7 @@ def test_error_older_than_retention_selected():
     try:
         _use_temp_db(tmp_path)
         init_db()
-        tid = create_task(
-            tmp_path, "error_task", {"llm_base_url": "http://x", "llm_model": "m"}
-        )
+        tid = create_task(tmp_path, "error_task", {"llm_base_url": "http://x", "llm_model": "m"})
         import sqlite3
 
         conn = sqlite3.connect(tmp_path)
@@ -82,9 +76,7 @@ def test_done_within_retention_not_selected():
     try:
         _use_temp_db(tmp_path)
         init_db()
-        tid = create_task(
-            tmp_path, "recent", {"llm_base_url": "http://x", "llm_model": "m"}
-        )
+        tid = create_task(tmp_path, "recent", {"llm_base_url": "http://x", "llm_model": "m"})
         import sqlite3
 
         conn = sqlite3.connect(tmp_path)
@@ -96,9 +88,7 @@ def test_done_within_retention_not_selected():
         conn.close()
 
         tasks = get_expired_tasks(7)
-        assert not any(t["id"] == tid for t in tasks), (
-            "done task <7d should not be expired"
-        )
+        assert not any(t["id"] == tid for t in tasks), "done task <7d should not be expired"
     finally:
         os.unlink(tmp_path)
 
@@ -109,9 +99,7 @@ def test_pending_requires_both_timestamps_expired():
     try:
         _use_temp_db(tmp_path)
         init_db()
-        tid = create_task(
-            tmp_path, "zombie", {"llm_base_url": "http://x", "llm_model": "m"}
-        )
+        tid = create_task(tmp_path, "zombie", {"llm_base_url": "http://x", "llm_model": "m"})
         import sqlite3
 
         conn = sqlite3.connect(tmp_path)
@@ -136,9 +124,7 @@ def test_pending_both_old_selected():
     try:
         _use_temp_db(tmp_path)
         init_db()
-        tid = create_task(
-            tmp_path, "zombie2", {"llm_base_url": "http://x", "llm_model": "m"}
-        )
+        tid = create_task(tmp_path, "zombie2", {"llm_base_url": "http://x", "llm_model": "m"})
         import sqlite3
 
         conn = sqlite3.connect(tmp_path)
@@ -164,9 +150,7 @@ def test_processing_never_selected():
         _use_temp_db(tmp_path)
         init_db()
         # Stagnant processing task (updated_at 30 days ago) should be selected
-        tid = create_task(
-            tmp_path, "stuck", {"llm_base_url": "http://x", "llm_model": "m"}
-        )
+        tid = create_task(tmp_path, "stuck", {"llm_base_url": "http://x", "llm_model": "m"})
         import sqlite3
 
         conn = sqlite3.connect(tmp_path)
@@ -350,12 +334,8 @@ def test_permission_error_preserves_db_row():
             cleanup_expired_tasks()
 
         # Directories should still exist
-        assert os.path.exists(task_video_dir), (
-            "video dir should remain after PermissionError"
-        )
-        assert os.path.exists(task_output_dir), (
-            "output dir should remain after PermissionError"
-        )
+        assert os.path.exists(task_video_dir), "video dir should remain after PermissionError"
+        assert os.path.exists(task_output_dir), "output dir should remain after PermissionError"
 
         # DB row should NOT be deleted
         task = get_task(tid)

@@ -38,9 +38,7 @@ def test_apply_subtitle_style_valid():
     task_id = _make_task()
     from app.tools.user.apply_subtitle_style import _apply_subtitle_style
 
-    result = asyncio.run(
-        _apply_subtitle_style.execute(task_id=task_id, preset="douyin")
-    )
+    result = asyncio.run(_apply_subtitle_style.execute(task_id=task_id, preset="douyin"))
     assert result.success is True
     assert "已应用" in result.user_message
 
@@ -50,9 +48,7 @@ def test_apply_subtitle_style_invalid_preset():
     task_id = _make_task()
     from app.tools.user.apply_subtitle_style import _apply_subtitle_style
 
-    result = asyncio.run(
-        _apply_subtitle_style.execute(task_id=task_id, preset="nonexistent")
-    )
+    result = asyncio.run(_apply_subtitle_style.execute(task_id=task_id, preset="nonexistent"))
     assert result.success is False
 
 
@@ -92,9 +88,7 @@ def test_apply_subtitle_style_processing_guard():
     task_id = _make_task("processing", stage="exporting_clips")
     from app.tools.user.apply_subtitle_style import _apply_subtitle_style
 
-    result = asyncio.run(
-        _apply_subtitle_style.execute(task_id=task_id, preset="douyin")
-    )
+    result = asyncio.run(_apply_subtitle_style.execute(task_id=task_id, preset="douyin"))
     assert result.success is False
     assert "处理中" in result.user_message
 

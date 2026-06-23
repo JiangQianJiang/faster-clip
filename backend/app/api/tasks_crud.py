@@ -240,9 +240,7 @@ async def create_task_endpoint(
         )
         if sub_ext not in SUPPORTED_IMPORT_FORMATS:
             _cleanup_task(task_id, video_dir)
-            raise HTTPException(
-                400, detail=f"不支持的字幕格式: .{sub_ext}，支持: srt, vtt, ass"
-            )
+            raise HTTPException(400, detail=f"不支持的字幕格式: .{sub_ext}，支持: srt, vtt, ass")
 
         sub_content = await subtitle_file.read()
         if len(sub_content) > SUBTITLE_MAX_SIZE:

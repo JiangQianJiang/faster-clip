@@ -67,7 +67,9 @@ class GetExportProgress(Tool):
             clip_statuses.append(entry)
 
         if pending_count > 0:
-            summary = f"导出进行中: {success_count} 成功, {failed_count} 失败, {pending_count} 待处理"
+            summary = (
+                f"导出进行中: {success_count} 成功, {failed_count} 失败, {pending_count} 待处理"
+            )
         elif failed_count > 0:
             summary = f"导出完成: {success_count} 成功, {failed_count} 失败"
         else:

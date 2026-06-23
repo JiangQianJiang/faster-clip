@@ -426,9 +426,7 @@ def test_confidence_dict_segment_with_avg_logprob():
     """Dict-shaped Whisper segments with avg_logprob get confidence."""
     client = MagicMock()
     client.audio.transcriptions.create.return_value = {
-        "segments": [
-            {"start": 0.0, "end": 5.0, "text": "dict seg", "avg_logprob": -0.3}
-        ],
+        "segments": [{"start": 0.0, "end": 5.0, "text": "dict seg", "avg_logprob": -0.3}],
     }
     with (
         patch("app.services.asr.OpenAI", return_value=client),
@@ -536,11 +534,7 @@ def test_qwen_parse_results_words_none_when_missing():
     """When the Qwen response omits the words field, words is None."""
     data = {
         "transcripts": [
-            {
-                "sentences": [
-                    {"begin_time": 1000, "end_time": 3000, "text": "无词级数据"}
-                ]
-            }
+            {"sentences": [{"begin_time": 1000, "end_time": 3000, "text": "无词级数据"}]}
         ]
     }
     result = _parse_qwen_results(data)
@@ -646,4 +640,6 @@ def test_qwen_parse_results_sanitizes_invalid_timeline():
 
     assert [s["text"] for s in result] == ["我就觉得完整", "后面"]
     assert all(s["end_time_s"] > s["start_time_s"] for s in result)
-    assert all(result[i]["end_time_s"] <= result[i + 1]["start_time_s"] for i in range(len(result) - 1))
+    assert all(
+        result[i]["end_time_s"] <= result[i + 1]["start_time_s"] for i in range(len(result) - 1)
+    )

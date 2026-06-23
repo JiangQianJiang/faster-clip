@@ -116,7 +116,7 @@ def probe(filepath: str) -> VideoInfo:
         elif "h264" in encoder.lower() or "avc" in encoder.lower():
             codec_name = "h264"
 
-    if (not width or not height or width <= 0 or height <= 0):
+    if not width or not height or width <= 0 or height <= 0:
         # Fall back to container-level displayWidth / displayHeight tags.
         # Bilibili FLV files (BVC-SRT LiveHime encoder) carry these tags.
         tag_w = fmt_tags.get("displayWidth")

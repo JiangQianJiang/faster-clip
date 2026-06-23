@@ -69,9 +69,7 @@ class EditTranscript(Tool):
 
         task = get_task(task_id)
         if task is None:
-            return ToolResult(
-                success=False, error="Task not found", user_message="任务不存在"
-            )
+            return ToolResult(success=False, error="Task not found", user_message="任务不存在")
 
         # Guard: reject mutations while task is processing (any stage)
         if task.get("status") in ("pending", "queued", "processing"):

@@ -109,9 +109,7 @@ def analyze(
                 ],
                 timeout=timeout,
             )
-            text2 = "".join(
-                block.text for block in resp2.content if hasattr(block, "text")
-            )
+            text2 = "".join(block.text for block in resp2.content if hasattr(block, "text"))
             parsed = _extract_json(text2)
         except Exception as e:
             if isinstance(e, (AuthError, ConnectionError_)):

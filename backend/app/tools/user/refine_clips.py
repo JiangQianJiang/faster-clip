@@ -300,9 +300,7 @@ class RefineClips(Tool):
                         json_match = _re.search(r"\{[^}]+\}", text)
                     if json_match:
                         refined = json.loads(json_match.group(0))
-                        new_start = float(
-                            refined.get("start_time_s", clip["start_time_s"])
-                        )
+                        new_start = float(refined.get("start_time_s", clip["start_time_s"]))
                         new_end = float(refined.get("end_time_s", clip["end_time_s"]))
                         # Clamp both bounds to [0, video_duration]
                         new_start = max(0, min(new_start, video_duration - 1))

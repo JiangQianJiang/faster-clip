@@ -41,9 +41,7 @@ class ApplySubtitleStyle(Tool):
 
         task = get_task(task_id)
         if task is None:
-            return ToolResult(
-                success=False, error="task not found", user_message="任务不存在"
-            )
+            return ToolResult(success=False, error="task not found", user_message="任务不存在")
 
         # Guard: reject while processing (style won't affect in-flight pipeline)
         if task.get("status") in ("queued", "processing"):
@@ -59,18 +57,14 @@ class ApplySubtitleStyle(Tool):
 
             preset_data = get_preset(preset)
         except (ValueError, FileNotFoundError) as e:
-            return ToolResult(
-                success=False, error=str(e), user_message=f"无效的样式预设: {preset}"
-            )
+            return ToolResult(success=False, error=str(e), user_message=f"无效的样式预设: {preset}")
 
         # Validate overrides if provided
         if overrides:
             try:
                 build_force_style(preset, overrides)
             except ValueError as e:
-                return ToolResult(
-                    success=False, error=str(e), user_message=f"参数覆盖无效: {e}"
-                )
+                return ToolResult(success=False, error=str(e), user_message=f"参数覆盖无效: {e}")
 
         # Store style config in config_json
         config = json.loads(task.get("config_json") or "{}")

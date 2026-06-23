@@ -40,15 +40,9 @@ def test_config_json_excludes_api_keys():
         task = get_task(tid)
         config_json = json.loads(task["config_json"])
 
-        assert "llm_api_key" not in config_json, (
-            "llm_api_key must NOT be in config_json"
-        )
-        assert "asr_api_key" not in config_json, (
-            "asr_api_key must NOT be in config_json"
-        )
-        assert "sk-ant-secret123" not in json.dumps(config_json), (
-            "key value must not appear"
-        )
+        assert "llm_api_key" not in config_json, "llm_api_key must NOT be in config_json"
+        assert "asr_api_key" not in config_json, "asr_api_key must NOT be in config_json"
+        assert "sk-ant-secret123" not in json.dumps(config_json), "key value must not appear"
     finally:
         os.unlink(tmp_path)
 

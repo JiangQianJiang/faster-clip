@@ -25,9 +25,7 @@ _redacting_installed = False
 
 # ── Task ID context propagation ──────────────────────────────────────────
 
-_task_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "task_id", default=None
-)
+_task_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("task_id", default=None)
 
 
 def set_task_id(task_id: str | None) -> None:
@@ -133,9 +131,7 @@ class JsonFormatter(logging.Formatter):
             if isinstance(value, str):
                 return _redact_keys_in_text(value)
             if isinstance(value, dict):
-                return {
-                    _redact_keys_in_text(k): _redact_extra(v) for k, v in value.items()
-                }
+                return {_redact_keys_in_text(k): _redact_extra(v) for k, v in value.items()}
             if isinstance(value, list):
                 return [_redact_extra(v) for v in value]
             return value

@@ -86,9 +86,7 @@ async def chat_endpoint(task_id: str, request: Request):
     llm_api_key = _get_llm_api_key(config, body)
 
     # Resolve checkpoint mode (from config or request body, default "auto")
-    checkpoint_mode_raw = (
-        body.get("checkpoint_mode") or config.get("checkpoint_mode") or "auto"
-    )
+    checkpoint_mode_raw = body.get("checkpoint_mode") or config.get("checkpoint_mode") or "auto"
     if not isinstance(checkpoint_mode_raw, str):
         raise HTTPException(400, detail="checkpoint_mode 必须是字符串")
     checkpoint_mode = checkpoint_mode_raw.strip()

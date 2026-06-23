@@ -15,6 +15,7 @@ def set_test_token(monkeypatch):
 
     monkeypatch.setattr(app.config.settings, "access_token", token)
     from app.main import app
+
     return app
 
 
@@ -30,6 +31,7 @@ def auth_headers():
 
 # --- Health endpoint (public) ---
 
+
 def test_health_no_auth(client):
     """Health endpoint should be accessible without authentication."""
     res = client.get("/api/health")
@@ -44,6 +46,7 @@ def test_health_with_auth(client, auth_headers):
 
 
 # --- Auth verify endpoint (public but requires valid token for success) ---
+
 
 def test_auth_verify_no_token(client):
     """Auth verify without token should return 401."""
@@ -78,7 +81,6 @@ PROTECTED_ROUTES = [
     ("GET", "/api/tasks/test-task-id-12345678/video"),
     ("GET", "/api/tasks/test-task-id-12345678/clips/0/download"),
     ("GET", "/api/tasks/test-task-id-12345678/clips/0/thumbnail"),
-
     ("GET", "/api/tasks/test-task-id-12345678/clips/0/subtitles"),
     ("GET", "/api/tasks/test-task-id-12345678/clips/0/subtitles/json"),
 ]
@@ -102,6 +104,7 @@ def test_api_route_accessible_without_auth(client, method, path):
 
 # --- Auth header is ignored (AuthMiddleware removed) ---
 
+
 @pytest.mark.parametrize("method,path", PROTECTED_ROUTES[:3])  # Sample a few
 def test_api_route_with_any_auth_header_still_accessible(client, method, path):
     """API routes with any auth header should still be accessible (auth is not enforced)."""
@@ -121,6 +124,7 @@ def test_api_route_with_any_auth_header_still_accessible(client, method, path):
 
 
 # --- Malformed auth header ---
+
 
 def test_malformed_auth_header_ignored(client):
     """Auth header without Bearer prefix is ignored (no auth enforcement)."""
@@ -142,6 +146,7 @@ def test_empty_auth_header_ignored(client):
 
 # --- OPTIONS preflight ---
 
+
 def test_options_preflight_no_auth(client):
     """OPTIONS requests should pass through without auth."""
     res = client.options("/api/tasks")
@@ -149,6 +154,7 @@ def test_options_preflight_no_auth(client):
 
 
 # --- Security headers ---
+
 
 def test_security_headers_present(client):
     """All responses should include security headers."""
@@ -168,6 +174,7 @@ def test_security_headers_on_success(client):
 
 # --- Token is not required (AuthMiddleware removed) ---
 
+
 def test_api_route_without_token_succeeds_or_404(client):
     """Without auth middleware, API routes should not return 401."""
     res = client.get("/api/tasks")
@@ -176,6 +183,7 @@ def test_api_route_without_token_succeeds_or_404(client):
 
 
 # --- Const-time comparison: verify endpoint still enforces auth internally ---
+
 
 def test_auth_verify_still_checks_token(client):
     """The /api/auth/verify endpoint still validates tokens internally."""

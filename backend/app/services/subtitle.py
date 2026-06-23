@@ -63,18 +63,13 @@ def parse_subtitle_bytes(content: bytes, format: str) -> tuple[list, list]:
 
 def has_text_subtitles(subtitle_streams: list[dict]) -> bool:
     return any(
-        s.get("codec_name", "").lower() in SUBTITLE_CODECS
-        or _tag_language(s, "chi", "zho", "zh")
+        s.get("codec_name", "").lower() in SUBTITLE_CODECS or _tag_language(s, "chi", "zho", "zh")
         for s in subtitle_streams
     )
 
 
-def extract_embedded_subtitles(
-    video_path: str, streams: list[dict]
-) -> list[dict] | None:
-    text_streams = [
-        s for s in streams if s.get("codec_name", "").lower() in SUBTITLE_CODECS
-    ]
+def extract_embedded_subtitles(video_path: str, streams: list[dict]) -> list[dict] | None:
+    text_streams = [s for s in streams if s.get("codec_name", "").lower() in SUBTITLE_CODECS]
     if not text_streams:
         return None
 
@@ -336,8 +331,7 @@ def segments_to_ass(segments: list[dict]) -> str:
         "&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,10,10,10,1",
         "",
         "[Events]",
-        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, "
-        "MarginV, Effect, Text",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
     for seg in segments:
         start = _format_ass_time(seg["start_time_s"])
@@ -414,19 +408,13 @@ def get_clip_subtitle_segments(
             clipped_words = [
                 {
                     "text": w["text"],
-                    "start_time_s": round(
-                        max(w["start_time_s"] - window_start, 0.0), 3
-                    ),
-                    "end_time_s": round(
-                        min(w["end_time_s"] - window_start, window_dur), 3
-                    ),
+                    "start_time_s": round(max(w["start_time_s"] - window_start, 0.0), 3),
+                    "end_time_s": round(min(w["end_time_s"] - window_start, window_dur), 3),
                 }
                 for w in seg["words"]
                 if w["end_time_s"] > window_start
                 and w["start_time_s"] < window_end
-                and min(w["end_time_s"], window_end)
-                - max(w["start_time_s"], window_start)
-                > 0
+                and min(w["end_time_s"], window_end) - max(w["start_time_s"], window_start) > 0
             ]
         if clipped_words:
             text = "".join(str(w["text"]) for w in clipped_words)

@@ -206,8 +206,7 @@ class TestParseSubtitleBytes:
     def test_empty_text_produces_warning(self):
         """Import with empty-text cue returns warning via validator, not parser."""
         content = (
-            b"1\n00:00:01,000 --> 00:00:03,500\nValid\n\n"
-            b"2\n00:00:05,000 --> 00:00:08,000\n   \n\n"
+            b"1\n00:00:01,000 --> 00:00:03,500\nValid\n\n2\n00:00:05,000 --> 00:00:08,000\n   \n\n"
         )
         segments, warnings = parse_subtitle_bytes(content, "srt")
         assert len(segments) == 1
@@ -449,33 +448,25 @@ class TestFormatExporters:
 
     def test_formatter_millisecond_rollover_srt(self):
         """SRT: 1.9996s exports as 2.000 not 1.000 (carry from ms rollover)."""
-        srt = segments_to_srt(
-            [{"start_time_s": 1.9996, "end_time_s": 3.9996, "text": "x"}]
-        )
+        srt = segments_to_srt([{"start_time_s": 1.9996, "end_time_s": 3.9996, "text": "x"}])
         assert "00:00:02,000" in srt, f"Expected 02,000 got: {srt}"
         assert "00:00:04,000" in srt, f"Expected 04,000 got: {srt}"
 
     def test_formatter_millisecond_rollover_vtt(self):
         """VTT: 1.9996s exports as 2.000 not 1.000."""
-        vtt = segments_to_vtt(
-            [{"start_time_s": 1.9996, "end_time_s": 3.9996, "text": "x"}]
-        )
+        vtt = segments_to_vtt([{"start_time_s": 1.9996, "end_time_s": 3.9996, "text": "x"}])
         assert "00:00:02.000" in vtt, f"Expected 02.000 got: {vtt}"
         assert "00:00:04.000" in vtt, f"Expected 04.000 got: {vtt}"
 
     def test_formatter_millisecond_rollover_ass(self):
         """ASS: 1.9996s exports as 2.000 not 1.000."""
-        ass = segments_to_ass(
-            [{"start_time_s": 1.9996, "end_time_s": 3.9996, "text": "x"}]
-        )
+        ass = segments_to_ass([{"start_time_s": 1.9996, "end_time_s": 3.9996, "text": "x"}])
         assert "0:00:02.000" in ass, f"Expected 0:00:02.000 got: {ass}"
         assert "0:00:04.000" in ass, f"Expected 0:00:04.000 got: {ass}"
 
     def test_formatter_rollover_hour_boundary(self):
         """3599.9996s (just under 1 hour) rolls over correctly."""
-        srt = segments_to_srt(
-            [{"start_time_s": 3599.9996, "end_time_s": 3600.9996, "text": "x"}]
-        )
+        srt = segments_to_srt([{"start_time_s": 3599.9996, "end_time_s": 3600.9996, "text": "x"}])
         assert "01:00:00,000" in srt
         assert "01:00:01,000" in srt
 
@@ -484,9 +475,7 @@ class TestFormatExporters:
         segments = [{"start_time_s": 1.9996, "end_time_s": 3599.9996, "text": "edge"}]
         for fmt_name, exporter in [("srt", segments_to_srt), ("vtt", segments_to_vtt)]:
             exported = exporter(segments)
-            reimported, warnings = parse_subtitle_bytes(
-                exported.encode("utf-8"), fmt_name
-            )
+            reimported, warnings = parse_subtitle_bytes(exported.encode("utf-8"), fmt_name)
             assert len(reimported) == 1
             assert warnings == []
             assert abs(reimported[0]["start_time_s"] - 2.0) <= 0.001, (
@@ -523,9 +512,7 @@ class TestFormatExporters:
             assert len(reimported) == 2, f"{fmt}: expected 2 segments"
             assert warnings == [], f"{fmt}: unexpected warnings {warnings}"
             for i in range(2):
-                delta_start = abs(
-                    reimported[i]["start_time_s"] - segments[i]["start_time_s"]
-                )
+                delta_start = abs(reimported[i]["start_time_s"] - segments[i]["start_time_s"])
                 delta_end = abs(reimported[i]["end_time_s"] - segments[i]["end_time_s"])
                 assert delta_start <= 0.001, (
                     f"{fmt} seg {i}: start {segments[i]['start_time_s']} "

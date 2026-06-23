@@ -46,7 +46,9 @@ class WorkflowRuntime:
             return "exported"
         if clips:
             return "clips_ready"
-        if (task.get("subtitle_segment_count") or 0) > 0 or (task.get("transcript_version") or 0) > 0:
+        if (task.get("subtitle_segment_count") or 0) > 0 or (
+            task.get("transcript_version") or 0
+        ) > 0:
             return "transcript_ready"
         if task.get("media_info_json") or task.get("video_path"):
             return "media_ready"
@@ -54,7 +56,9 @@ class WorkflowRuntime:
             return "uploaded"
         return "unknown"
 
-    def validate_tool_call(self, task: dict[str, Any] | None, tool: Tool | None) -> tuple[bool, str | None]:
+    def validate_tool_call(
+        self, task: dict[str, Any] | None, tool: Tool | None
+    ) -> tuple[bool, str | None]:
         if tool is None:
             return False, "未知工具，无法执行。"
         if task is None:
@@ -68,10 +72,7 @@ class WorkflowRuntime:
             return True, None
 
         target = required_states[0]
-        reason = (
-            f"当前任务还没有 {target}，不能执行 {tool.name}。"
-            "请先运行 ASR 或导入字幕。"
-        )
+        reason = f"当前任务还没有 {target}，不能执行 {tool.name}。请先运行 ASR 或导入字幕。"
         return False, reason
 
     def apply_tool_success(self, task_id: str, tool: Tool | None, result: ToolResult) -> str | None:

@@ -40,10 +40,7 @@ def _ensure_task_video_path(task_id: str, video_path: str) -> str:
 
     abs_path = os.path.abspath(video_path)
     task_video_root = os.path.abspath(str(VIDEOS_DIR / task_id))
-    if (
-        not abs_path.startswith(task_video_root + os.sep)
-        and abs_path != task_video_root
-    ):
+    if not abs_path.startswith(task_video_root + os.sep) and abs_path != task_video_root:
         raise HTTPException(400, detail="无效的视频路径")
 
     if not os.path.isfile(abs_path):

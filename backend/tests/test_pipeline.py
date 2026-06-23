@@ -88,9 +88,7 @@ def test_partial_export_failure_done_with_mixed_status():
             "app.worker.pipeline.extract_embedded_subtitles",
             return_value=_make_segments(),
         ),
-        patch(
-            "app.worker.pipeline.save_transcript", return_value="/fake/transcript.json"
-        ),
+        patch("app.worker.pipeline.save_transcript", return_value="/fake/transcript.json"),
         patch("app.worker.pipeline.build_prompt", return_value="fake prompt"),
         patch("app.worker.pipeline.analyze", return_value=_make_raw_clips()),
         patch("app.worker.pipeline._export_clip", side_effect=fake_export),
@@ -100,9 +98,7 @@ def test_partial_export_failure_done_with_mixed_status():
     ):
         run(task_id, "/fake/video.mp4", config, "sk-llm", "sk-asr")
 
-    final_calls = [
-        c for c in mock_status.call_args_list if c[0][1] in ("done", "error")
-    ]
+    final_calls = [c for c in mock_status.call_args_list if c[0][1] in ("done", "error")]
     assert final_calls, "should have a final status update"
     final_call = final_calls[-1]
     assert final_call[0][0] == task_id
@@ -134,9 +130,7 @@ def test_all_export_failure_error_with_failed_stage():
             "app.worker.pipeline.extract_embedded_subtitles",
             return_value=_make_segments(),
         ),
-        patch(
-            "app.worker.pipeline.save_transcript", return_value="/fake/transcript.json"
-        ),
+        patch("app.worker.pipeline.save_transcript", return_value="/fake/transcript.json"),
         patch("app.worker.pipeline.build_prompt", return_value="fake prompt"),
         patch("app.worker.pipeline.analyze", return_value=_make_raw_clips()),
         patch("app.worker.pipeline._export_clip", side_effect=fake_export),
@@ -146,9 +140,7 @@ def test_all_export_failure_error_with_failed_stage():
     ):
         run(task_id, "/fake/video.mp4", config, "sk-llm", "sk-asr")
 
-    final_calls = [
-        c for c in mock_status.call_args_list if c[0][1] in ("done", "error")
-    ]
+    final_calls = [c for c in mock_status.call_args_list if c[0][1] in ("done", "error")]
     assert final_calls
     final_call = final_calls[-1]
     assert final_call[0][0] == task_id
@@ -171,9 +163,7 @@ def test_asr_auth_failure_cleans_up_temp_audio():
         patch("app.worker.pipeline.probe", return_value=_make_info()),
         patch("app.worker.pipeline.has_text_subtitles", return_value=False),
         patch("app.worker.pipeline.update_task_status"),
-        patch(
-            "app.worker.pipeline.extract_audio", return_value="/tmp/test_extracted.wav"
-        ),
+        patch("app.worker.pipeline.extract_audio", return_value="/tmp/test_extracted.wav"),
         patch("app.worker.pipeline.transcribe", side_effect=AuthError("401")),
         patch("app.worker.pipeline.os.path.exists", return_value=True),
         patch("app.worker.pipeline.os.unlink") as mock_unlink,
@@ -195,12 +185,8 @@ def test_asr_retry_exhaustion_cleans_up_temp_audio():
         patch("app.worker.pipeline.probe", return_value=_make_info()),
         patch("app.worker.pipeline.has_text_subtitles", return_value=False),
         patch("app.worker.pipeline.update_task_status"),
-        patch(
-            "app.worker.pipeline.extract_audio", return_value="/tmp/test_extracted2.wav"
-        ),
-        patch(
-            "app.worker.pipeline.transcribe", side_effect=ASRError("retry exhausted")
-        ),
+        patch("app.worker.pipeline.extract_audio", return_value="/tmp/test_extracted2.wav"),
+        patch("app.worker.pipeline.transcribe", side_effect=ASRError("retry exhausted")),
         patch("app.worker.pipeline.os.path.exists", return_value=True),
         patch("app.worker.pipeline.os.unlink") as mock_unlink,
     ):

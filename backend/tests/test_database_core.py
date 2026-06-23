@@ -55,7 +55,9 @@ def test_mysql_database_adapter_connects_and_runs_transaction(monkeypatch):
 
     settings = app_config.settings
     monkeypatch.setattr(settings, "database_engine", "mysql", raising=False)
-    monkeypatch.setattr(settings, "database_url", os.environ["MYSQL_TEST_DATABASE_URL"], raising=False)
+    monkeypatch.setattr(
+        settings, "database_url", os.environ["MYSQL_TEST_DATABASE_URL"], raising=False
+    )
 
     db = get_database()
     try:

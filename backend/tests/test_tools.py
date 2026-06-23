@@ -145,9 +145,7 @@ def test_get_task_status_tool_executes():
 
     from app.tools.kernel.get_task_status import _get_task_status
 
-    result = asyncio.run(
-        _get_task_status.execute(task_id="00000000-0000-0000-0000-000000000000")
-    )
+    result = asyncio.run(_get_task_status.execute(task_id="00000000-0000-0000-0000-000000000000"))
     assert isinstance(result, ToolResult)
     assert result.success is False
 
@@ -183,9 +181,7 @@ def test_update_segment_tool_executes(tmp_path):
 def test_update_segment_out_of_range(tmp_path):
     """update_segment with out-of-range index returns failure."""
     transcript_path = tmp_path / "transcript.json"
-    transcript_path.write_text(
-        json.dumps([{"start_time_s": 0.0, "end_time_s": 1.0, "text": "x"}])
-    )
+    transcript_path.write_text(json.dumps([{"start_time_s": 0.0, "end_time_s": 1.0, "text": "x"}]))
 
     import asyncio
 
@@ -256,9 +252,7 @@ def test_split_segment_tool_executes(tmp_path):
 def test_split_segment_invalid_time(tmp_path):
     """split_segment with split time outside segment range returns failure."""
     transcript_path = tmp_path / "transcript.json"
-    transcript_path.write_text(
-        json.dumps([{"start_time_s": 0.0, "end_time_s": 10.0, "text": "x"}])
-    )
+    transcript_path.write_text(json.dumps([{"start_time_s": 0.0, "end_time_s": 10.0, "text": "x"}]))
 
     import asyncio
 
@@ -319,12 +313,8 @@ def test_tool_module_no_http_imports():
 
     # Check that base module doesn't import HTTP libraries
     base_modules = set(sys.modules.keys())
-    assert "fastapi" not in base_modules or "fastapi" not in str(
-        app.tools.base.__dict__
-    )
-    assert "starlette" not in base_modules or "starlette" not in str(
-        app.tools.base.__dict__
-    )
+    assert "fastapi" not in base_modules or "fastapi" not in str(app.tools.base.__dict__)
+    assert "starlette" not in base_modules or "starlette" not in str(app.tools.base.__dict__)
 
 
 # ─── Task 1: Tool exception propagation guard ───
@@ -371,9 +361,7 @@ def test_export_clips_negative_index_rejected():
     update_task_status(
         task_id,
         "done",
-        clips_json=json.dumps(
-            [{"start_time_s": 0, "end_time_s": 5, "status": "success"}]
-        ),
+        clips_json=json.dumps([{"start_time_s": 0, "end_time_s": 5, "status": "success"}]),
     )
 
     import asyncio
@@ -400,9 +388,7 @@ def test_export_clips_out_of_range_rejected():
     update_task_status(
         task_id,
         "done",
-        clips_json=json.dumps(
-            [{"start_time_s": 0, "end_time_s": 5, "status": "success"}]
-        ),
+        clips_json=json.dumps([{"start_time_s": 0, "end_time_s": 5, "status": "success"}]),
     )
 
     import asyncio
@@ -443,9 +429,7 @@ def test_export_clips_duplicates_deduplicated():
     mock_task = MagicMock()
     mock_task.apply_async = MagicMock()
     with patch("app.worker.celery_app.export_clips_task", mock_task):
-        result = asyncio.run(
-            _export_clips.execute(task_id=task_id, clip_indices=[1, 1, 0])
-        )
+        result = asyncio.run(_export_clips.execute(task_id=task_id, clip_indices=[1, 1, 0]))
     assert result.success is True
     args = mock_task.apply_async.call_args[1]["kwargs"]
     assert args["clip_indices"] == [1, 0]
@@ -466,9 +450,7 @@ def test_export_clips_no_ffmpeg_in_api_process():
     update_task_status(
         task_id,
         "done",
-        clips_json=json.dumps(
-            [{"start_time_s": 0, "end_time_s": 5, "status": "success"}]
-        ),
+        clips_json=json.dumps([{"start_time_s": 0, "end_time_s": 5, "status": "success"}]),
     )
 
     from app.tools.user.export_clips import _export_clips

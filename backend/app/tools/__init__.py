@@ -42,8 +42,7 @@ def list_kernel_tools() -> list[dict]:
 
 def _tools_to_schemas(tools: list[Tool]) -> list[dict]:
     return [
-        {"name": t.name, "description": t.description, "input_schema": t.parameters}
-        for t in tools
+        {"name": t.name, "description": t.description, "input_schema": t.parameters} for t in tools
     ]
 
 

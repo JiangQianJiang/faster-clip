@@ -100,9 +100,7 @@ class SearchTranscript(Tool):
             match_seg = segments[idx]
             match_center = (match_seg["start_time_s"] + match_seg["end_time_s"]) / 2
 
-            context_lines = [
-                f"[{_fmt_ts(match_seg['start_time_s'])}] {match_seg['text']}"
-            ]
+            context_lines = [f"[{_fmt_ts(match_seg['start_time_s'])}] {match_seg['text']}"]
 
             # Scan backward for context
             for j in range(idx - 1, -1, -1):

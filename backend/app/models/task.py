@@ -87,9 +87,7 @@ def _migration_lock(timeout: int = 30):
             raise RuntimeError("无法获取迁移锁：文件系统错误")
     else:
         os.close(fd)
-        raise RuntimeError(
-            f"无法在 {timeout}s 内获取迁移锁，请确认没有其他进程正在运行迁移"
-        )
+        raise RuntimeError(f"无法在 {timeout}s 内获取迁移锁，请确认没有其他进程正在运行迁移")
     # Phase 2: lock held — yield with nested cleanup so close always runs
     try:
         yield
@@ -260,9 +258,7 @@ def create_task(video_path: str, video_filename: str, config: dict) -> str:
     task_id = str(uuid.uuid4())
     now = _now()
 
-    clean_config = {
-        k: v for k, v in config.items() if k not in ("llm_api_key", "asr_api_key")
-    }
+    clean_config = {k: v for k, v in config.items() if k not in ("llm_api_key", "asr_api_key")}
 
     with _database().transaction() as conn:
         conn.execute(

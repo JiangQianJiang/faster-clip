@@ -77,9 +77,7 @@ class RegenerateSubtitles(Tool):
 
         task = get_task(task_id)
         if task is None:
-            return ToolResult(
-                success=False, error="Task not found", user_message="任务不存在"
-            )
+            return ToolResult(success=False, error="Task not found", user_message="任务不存在")
 
         if task.get("status") in ("pending", "queued", "processing"):
             return ToolResult(
@@ -157,9 +155,7 @@ class RegenerateSubtitles(Tool):
             for i, clip in enumerate(clips):
                 if not isinstance(clip, dict) or clip.get("status") == "failed":
                     continue
-                window_start = clip.get(
-                    "export_start_time_s", clip.get("start_time_s", 0.0)
-                )
+                window_start = clip.get("export_start_time_s", clip.get("start_time_s", 0.0))
                 window_end = clip.get("export_end_time_s", clip.get("end_time_s", 0.0))
                 written = generate_clip_subtitles(
                     regenerated,
@@ -181,9 +177,7 @@ class RegenerateSubtitles(Tool):
             transcript_modified_at=utcnow_iso(),
         )
 
-        message = (
-            f"已基于现有字幕重新生成 {len(regenerated)} 条字幕，无需 ASR API Key"
-        )
+        message = f"已基于现有字幕重新生成 {len(regenerated)} 条字幕，无需 ASR API Key"
         if regenerate_clip_files:
             message += f"，并刷新 {clip_count} 个片段的 {clip_file_count} 个字幕文件"
         if warnings:

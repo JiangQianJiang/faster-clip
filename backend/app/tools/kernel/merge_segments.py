@@ -60,9 +60,7 @@ class MergeSegments(Tool):
                     user_message="合并范围超出字幕总数",
                 )
 
-            merged_text = " ".join(
-                s["text"] for s in segments[start_index : end_index + 1]
-            )
+            merged_text = " ".join(s["text"] for s in segments[start_index : end_index + 1])
             merged = {
                 "start_time_s": segments[start_index]["start_time_s"],
                 "end_time_s": segments[end_index]["end_time_s"],

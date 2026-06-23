@@ -34,13 +34,11 @@ def validate_access_token() -> None:
     token = settings.access_token
     if not token:
         raise SystemExit(
-            "缺少必需的环境变量 ACCESS_TOKEN。"
-            "请设置一个至少 32 个字符的高熵随机令牌。"
+            "缺少必需的环境变量 ACCESS_TOKEN。请设置一个至少 32 个字符的高熵随机令牌。"
         )
     if len(token) < _MIN_TOKEN_LENGTH:
         raise SystemExit(
-            f"ACCESS_TOKEN 长度不足: 需要至少 {_MIN_TOKEN_LENGTH} 个字符，"
-            f"当前长度为 {len(token)}。"
+            f"ACCESS_TOKEN 长度不足: 需要至少 {_MIN_TOKEN_LENGTH} 个字符，当前长度为 {len(token)}。"
         )
 
 

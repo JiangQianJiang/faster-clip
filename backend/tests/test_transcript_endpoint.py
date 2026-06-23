@@ -155,9 +155,7 @@ class TestTranscriptEndpoint:
         try:
             _setup_temp_db(db_path)
             task_id = self.T6
-            _insert_task_full(
-                db_path, task_id, status="processing", stage="extracting_subtitles"
-            )
+            _insert_task_full(db_path, task_id, status="processing", stage="extracting_subtitles")
 
             client = _make_client()
             response = client.get(f"/api/tasks/{task_id}/transcript")
@@ -737,9 +735,7 @@ class TestExportTranscript:
 
             client = _make_client()
             with patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)):
-                response = client.get(
-                    f"/api/tasks/{task_id}/transcript/export?format=srt"
-                )
+                response = client.get(f"/api/tasks/{task_id}/transcript/export?format=srt")
 
             assert response.status_code == 200
             cd = response.headers["content-disposition"]
@@ -773,9 +769,7 @@ class TestExportTranscript:
 
             client = _make_client()
             with patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)):
-                response = client.get(
-                    f"/api/tasks/{task_id}/transcript/export?format=vtt"
-                )
+                response = client.get(f"/api/tasks/{task_id}/transcript/export?format=vtt")
 
             assert response.status_code == 200
             body = response.text
@@ -806,9 +800,7 @@ class TestExportTranscript:
 
             client = _make_client()
             with patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)):
-                response = client.get(
-                    f"/api/tasks/{task_id}/transcript/export?format=ass"
-                )
+                response = client.get(f"/api/tasks/{task_id}/transcript/export?format=ass")
 
             assert response.status_code == 200
             assert "text/x-ssa" in response.headers["content-type"]
@@ -834,9 +826,7 @@ class TestExportTranscript:
 
             client = _make_client()
             with patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)):
-                response = client.get(
-                    f"/api/tasks/{task_id}/transcript/export?format=pdf"
-                )
+                response = client.get(f"/api/tasks/{task_id}/transcript/export?format=pdf")
 
             assert response.status_code == 400
             assert "Unsupported format" in response.json()["detail"]
@@ -885,9 +875,7 @@ class TestExportTranscript:
 
             client = _make_client()
             with patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)):
-                response = client.get(
-                    f"/api/tasks/{task_id}/transcript/export?format=srt"
-                )
+                response = client.get(f"/api/tasks/{task_id}/transcript/export?format=srt")
 
             assert response.status_code == 404
             assert "not available" in response.json()["detail"]
@@ -1340,9 +1328,7 @@ class TestPatchTranscript:
             client = _make_client()
             with (
                 patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)),
-                patch(
-                    "app.worker.celery_app.process_video_task.apply_async"
-                ) as mock_apply,
+                patch("app.worker.celery_app.process_video_task.apply_async") as mock_apply,
             ):
                 response = client.patch(
                     f"/api/tasks/{task_id}/transcript",
@@ -1459,9 +1445,7 @@ class TestPatchTranscript:
             client = _make_client()
             with (
                 patch("app.api.subtitles.OUTPUT_DIR", Path(tmp_output)),
-                patch(
-                    "app.worker.celery_app.process_video_task.apply_async"
-                ) as mock_apply,
+                patch("app.worker.celery_app.process_video_task.apply_async") as mock_apply,
             ):
                 response = client.patch(
                     f"/api/tasks/{task_id}/transcript",

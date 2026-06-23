@@ -261,9 +261,7 @@ def test_auto_mode_no_checkpoint():
         with (
             patch.object(svc, "_load_history", new_callable=AsyncMock),
             patch.object(svc, "_save_history", new_callable=AsyncMock),
-            patch.object(
-                svc, "_build_context", return_value="You are a test assistant."
-            ),
+            patch.object(svc, "_build_context", return_value="You are a test assistant."),
             patch.object(svc, "_execute_tool_with_retry", side_effect=mock_execute),
         ):
             mock_tool_response = MagicMock()
@@ -371,9 +369,7 @@ def test_tool_use_triggers_checkpoint_and_stops():
         with (
             patch.object(svc, "_load_history", new_callable=AsyncMock),
             patch.object(svc, "_save_history", new_callable=AsyncMock),
-            patch.object(
-                svc, "_build_context", return_value="You are a test assistant."
-            ),
+            patch.object(svc, "_build_context", return_value="You are a test assistant."),
             patch.object(svc, "_execute_tool_with_retry", side_effect=mock_execute),
         ):
             # Mock Anthropic: first call returns tool_use for analyze_highlights
@@ -430,9 +426,7 @@ def test_invalid_tool_call_returns_error():
         with (
             patch.object(svc, "_load_history", new_callable=AsyncMock),
             patch.object(svc, "_save_history", new_callable=AsyncMock),
-            patch.object(
-                svc, "_build_context", return_value="You are a test assistant."
-            ),
+            patch.object(svc, "_build_context", return_value="You are a test assistant."),
         ):
             mock_response = MagicMock()
             mock_response.stop_reason = "tool_use"
@@ -480,17 +474,13 @@ def test_non_checkpoint_tool_continues_loop():
         with (
             patch.object(svc, "_load_history", new_callable=AsyncMock),
             patch.object(svc, "_save_history", new_callable=AsyncMock),
-            patch.object(
-                svc, "_build_context", return_value="You are a test assistant."
-            ),
+            patch.object(svc, "_build_context", return_value="You are a test assistant."),
             patch.object(svc, "_execute_tool_with_retry", side_effect=mock_execute),
         ):
             # First: get_transcript tool_use (non-checkpoint)
             mock1 = MagicMock()
             mock1.stop_reason = "tool_use"
-            mock1.content = [
-                _MockToolUseBlock("get_transcript", {"task_id": "test-id"})
-            ]
+            mock1.content = [_MockToolUseBlock("get_transcript", {"task_id": "test-id"})]
 
             # Second: end_turn (loop continues because no checkpoint)
             mock2 = MagicMock()
@@ -683,9 +673,7 @@ def test_transient_error_auto_retry_once():
             patch.object(tool, "execute", side_effect=flaky_execute),
             patch("app.services.chat_service.asyncio.sleep", new_callable=AsyncMock),
         ):
-            result = await svc._execute_tool_with_retry(
-                "get_transcript", {"task_id": "x"}
-            )
+            result = await svc._execute_tool_with_retry("get_transcript", {"task_id": "x"})
 
         assert result.success is True
         assert result.user_message == "second success"
@@ -729,9 +717,7 @@ def test_non_transient_error_no_retry():
             patch.object(tool, "execute", side_effect=fail_with_param_error),
             patch("app.services.chat_service.asyncio.sleep", new_callable=AsyncMock),
         ):
-            result = await svc._execute_tool_with_retry(
-                "get_transcript", {"task_id": "x"}
-            )
+            result = await svc._execute_tool_with_retry("get_transcript", {"task_id": "x"})
 
         assert result.success is False
         assert "invalid segment index" in result.error
@@ -775,9 +761,7 @@ def test_transient_error_retry_fails():
             patch.object(tool, "execute", side_effect=always_timeout),
             patch("app.services.chat_service.asyncio.sleep", new_callable=AsyncMock),
         ):
-            result = await svc._execute_tool_with_retry(
-                "get_transcript", {"task_id": "x"}
-            )
+            result = await svc._execute_tool_with_retry("get_transcript", {"task_id": "x"})
 
         assert result.success is False
         assert "timed out" in result.error
@@ -859,16 +843,12 @@ def test_failed_checkpoint_sets_task_error():
 
         async def mock_fail(tool_name, tool_input):
             if tool_name == "analyze_highlights":
-                return ToolResult(
-                    success=False, error="LLM error", user_message="分析失败"
-                )
+                return ToolResult(success=False, error="LLM error", user_message="分析失败")
             return ToolResult(success=True, data={}, user_message="ok")
 
         mock_response = MagicMock()
         mock_response.stop_reason = "tool_use"
-        mock_response.content = [
-            _MockToolUseBlock("analyze_highlights", {"task_id": task_id})
-        ]
+        mock_response.content = [_MockToolUseBlock("analyze_highlights", {"task_id": task_id})]
 
         mock_end = MagicMock()
         mock_end.stop_reason = "end_turn"
@@ -944,9 +924,7 @@ def test_processing_guard_analyze_highlights_preserves_status():
 
         mock_response = MagicMock()
         mock_response.stop_reason = "tool_use"
-        mock_response.content = [
-            _MockToolUseBlock("analyze_highlights", {"task_id": task_id})
-        ]
+        mock_response.content = [_MockToolUseBlock("analyze_highlights", {"task_id": task_id})]
 
         mock_end = MagicMock()
         mock_end.stop_reason = "end_turn"
@@ -963,9 +941,7 @@ def test_processing_guard_analyze_highlights_preserves_status():
             patch.object(svc, "_load_history", new_callable=AsyncMock),
             patch.object(svc, "_save_history", new_callable=AsyncMock),
             patch.object(svc, "_build_context", return_value="test"),
-            patch.object(
-                svc, "_execute_tool_with_retry", side_effect=mock_guard_refusal
-            ),
+            patch.object(svc, "_execute_tool_with_retry", side_effect=mock_guard_refusal),
         ):
             events = []
             async for event in svc.chat("analyze"):
@@ -1032,9 +1008,7 @@ def test_processing_guard_export_clips_preserves_status():
 
         mock_response = MagicMock()
         mock_response.stop_reason = "tool_use"
-        mock_response.content = [
-            _MockToolUseBlock("export_clips", {"task_id": task_id})
-        ]
+        mock_response.content = [_MockToolUseBlock("export_clips", {"task_id": task_id})]
 
         mock_end = MagicMock()
         mock_end.stop_reason = "end_turn"
@@ -1051,9 +1025,7 @@ def test_processing_guard_export_clips_preserves_status():
             patch.object(svc, "_load_history", new_callable=AsyncMock),
             patch.object(svc, "_save_history", new_callable=AsyncMock),
             patch.object(svc, "_build_context", return_value="test"),
-            patch.object(
-                svc, "_execute_tool_with_retry", side_effect=mock_guard_refusal
-            ),
+            patch.object(svc, "_execute_tool_with_retry", side_effect=mock_guard_refusal),
         ):
             events = []
             async for event in svc.chat("export"):
@@ -1163,16 +1135,12 @@ def test_failed_export_clips_sets_task_error():
 
         async def mock_fail(tool_name, tool_input):
             if tool_name == "export_clips":
-                return ToolResult(
-                    success=False, error="enqueue failed", user_message="导出失败"
-                )
+                return ToolResult(success=False, error="enqueue failed", user_message="导出失败")
             return ToolResult(success=True, data={}, user_message="ok")
 
         mock_response = MagicMock()
         mock_response.stop_reason = "tool_use"
-        mock_response.content = [
-            _MockToolUseBlock("export_clips", {"task_id": task_id})
-        ]
+        mock_response.content = [_MockToolUseBlock("export_clips", {"task_id": task_id})]
 
         mock_end = MagicMock()
         mock_end.stop_reason = "end_turn"

@@ -136,7 +136,9 @@ class ToolExecutor:
         )
         return ToolResult(success=False, error=reason, user_message=reason)
 
-    async def _execute_with_retry(self, tool_name: str, tool, exec_kwargs: dict[str, Any]) -> ToolResult:
+    async def _execute_with_retry(
+        self, tool_name: str, tool, exec_kwargs: dict[str, Any]
+    ) -> ToolResult:
         result = ToolResult(success=False, error="Tool did not execute", user_message="工具未执行")
         for attempt in range(2):
             try:

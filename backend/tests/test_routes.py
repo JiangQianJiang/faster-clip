@@ -928,9 +928,7 @@ def test_upload_generic_ffprobe_error_returns_500():
 
         from app.services.ffprobe import FFprobeError
 
-        with patch(
-            "app.api.tasks_crud.probe", side_effect=FFprobeError("ffprobe crash")
-        ):
+        with patch("app.api.tasks_crud.probe", side_effect=FFprobeError("ffprobe crash")):
             response = client.post(
                 "/api/tasks",
                 files={"file": ("test.mp4", b"fake mp4", "video/mp4")},
@@ -1070,9 +1068,7 @@ def test_upload_queued_update_failure_cleans_up():
             patch("app.api.tasks_crud.OUTPUT_DIR", Path(tmp_output)),
             patch("app.api.tasks_crud.create_task", side_effect=capture_create),
             patch("app.worker.celery_app.process_video_task.apply_async"),
-            patch(
-                "app.api.tasks_crud.update_task_status", side_effect=update_side_effect
-            ),
+            patch("app.api.tasks_crud.update_task_status", side_effect=update_side_effect),
         ):
             response = client.post(
                 "/api/tasks",
