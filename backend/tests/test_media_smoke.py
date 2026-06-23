@@ -302,9 +302,7 @@ def test_ffmpeg_timeout_terminates_subprocess():
         }
 
         with patch("app.worker.pipeline.subprocess.run") as mock_run:
-            mock_run.side_effect = subprocess.TimeoutExpired(
-                cmd=["ffmpeg", "..."], timeout=0.5
-            )
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd=["ffmpeg", "..."], timeout=0.5)
             with pytest.raises(subprocess.TimeoutExpired):
                 _export_clip(
                     video,
