@@ -53,35 +53,23 @@ RUN for i in 1 2 3 4 5; do \
     done && (command -v curl) || (echo "ERROR: Required packages not installed after retries" && false)
 
 # Install static ffmpeg build (BtbN) for comprehensive codec support.
-# The Debian apt ffmpeg lacks HEVC-in-FLV support, which breaks Bilibili FLV
-# recordings.  Falls back to apt if GitHub is unreachable (e.g. CI behind a
-# proxy — the apt ffmpeg will work for most files, just not HEVC-in-FLV).
+# Debian apt ffmpeg 7.1.x cannot decode Bilibili HEVC-in-FLV recordings
+# (FLV video codec id 12), so a fallback apt install produces images that
+# accept uploads but fail every export.  Fail the build instead of shipping an
+# incompatible runtime.
 #
-# The 142 MB download can take 3–10 minutes on slower connections.  900 s
-# timeout + retries should cover most networks.  If your build environment
-# cannot reach GitHub at all, pre-download the tarball to
-# /tmp/ffmpeg-btbn.tar.xz and set SKIP_BTBN_DOWNLOAD=true.
+# The 124+ MB download can take several minutes on slower connections.  Curl
+# bypasses proxy settings here because proxy-injected GitHub paths previously
+# caused the build to fall back to incompatible Debian ffmpeg.
 RUN mkdir -p /tmp/ffmpeg && \
-    (if [ "${SKIP_BTBN_DOWNLOAD:-}" = "true" ] && [ -f /tmp/ffmpeg-btbn.tar.xz ]; then \
-         echo "Using pre-downloaded BtbN ffmpeg from /tmp/ffmpeg-btbn.tar.xz"; \
-         cp /tmp/ffmpeg-btbn.tar.xz /tmp/ffmpeg.tar.xz; \
-     else \
-         echo "Downloading BtbN static ffmpeg (142 MB, may take a few minutes) ..."; \
-         curl -fsSL --connect-timeout 30 --max-time 900 --retry 3 --retry-delay 30 \
-             "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz" \
-             -o /tmp/ffmpeg.tar.xz; \
-     fi && \
-     tar -xf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg --strip-components=1 && \
-     cp /tmp/ffmpeg/ffmpeg /tmp/ffmpeg/ffprobe /usr/local/bin/ && \
-     chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe && \
-     rm -rf /tmp/ffmpeg /tmp/ffmpeg.tar.xz) || \
-    (echo "WARNING: Could not download static ffmpeg, falling back to apt ffmpeg" && \
-     echo "HEVC-in-FLV files will NOT be supported with the fallback." && \
-     for i in 1 2 3; do \
-         apt-get update && \
-         apt-get install -y --no-install-recommends ffmpeg && \
-         rm -rf /var/lib/apt/lists/* && break || sleep 10; \
-     done)
+    echo "Downloading BtbN static ffmpeg (124+ MB, may take a few minutes) ..." && \
+    curl --noproxy '*' -fsSL --connect-timeout 30 --max-time 900 --retry 3 --retry-delay 30 \
+        "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz" \
+        -o /tmp/ffmpeg.tar.xz && \
+    tar -xf /tmp/ffmpeg.tar.xz -C /tmp/ffmpeg --strip-components=1 && \
+    cp /tmp/ffmpeg/bin/ffmpeg /tmp/ffmpeg/bin/ffprobe /usr/local/bin/ && \
+    chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe && \
+    rm -rf /tmp/ffmpeg /tmp/ffmpeg.tar.xz
 
 # Verify ffmpeg installation
 RUN ffprobe -version && ffmpeg -version
