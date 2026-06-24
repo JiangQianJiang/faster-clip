@@ -132,15 +132,10 @@ async def create_task_endpoint(
     try:
         with tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False) as tmp:
             chunk_size = 8 * 1024 * 1024
-            total = 0
             while True:
                 chunk = await file.read(chunk_size)
                 if not chunk:
                     break
-                total += len(chunk)
-                if total > settings.max_upload_size_bytes:
-                    os.unlink(tmp.name)
-                    raise HTTPException(413, detail="文件大小超过 2GB 限制")
                 tmp.write(chunk)
             tmp_path = tmp.name
     except HTTPException:

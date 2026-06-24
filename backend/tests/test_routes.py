@@ -662,29 +662,41 @@ def test_thumbnail_rejects_missing_file():
 # ── AC-1: 413 oversized upload ──────────────────────────────────────────────
 
 
-def test_upload_oversized_file_returns_413():
-    """POST /api/tasks returns 413 when file exceeds max_upload_size_bytes."""
+def test_upload_does_not_enforce_file_size_cap():
+    """POST /api/tasks accepts large files; ffprobe duration validation owns the cap."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
         db_path = tmp.name
     try:
         _setup_temp_db(db_path)
+        tmp_videos = tempfile.mkdtemp()
+        tmp_output = tempfile.mkdtemp()
         client = _make_client()
 
-        with patch("app.api.tasks_crud.settings.max_upload_size_bytes", 5):
+        with (
+            patch("app.api.tasks_crud.settings.llm_api_key", "settings-llm-secret"),
+            patch("app.api.tasks_crud.settings.asr_api_key", "settings-asr-secret"),
+            patch("app.api.tasks_crud.settings.max_upload_size_bytes", 5, create=True),
+            patch("app.api.tasks_crud.probe", return_value=_make_info()),
+            patch("app.worker.celery_app.process_video_task.apply_async"),
+            patch("app.api.tasks_crud.VIDEOS_DIR", Path(tmp_videos)),
+            patch("app.api.tasks_crud.OUTPUT_DIR", Path(tmp_output)),
+        ):
             response = client.post(
                 "/api/tasks",
                 files={"file": ("test.mp4", b"x" * 100, "video/mp4")},
                 data={
                     "llm_base_url": "https://api.example.com",
                     "llm_model": "m",
-                    "llm_api_key": "sk-test",
                 },
             )
-        assert response.status_code == 413
-        detail = response.json()["detail"]
-        assert "大小" in detail or "2GB" in detail
+
+        assert response.status_code == 201
     finally:
         os.unlink(db_path)
+        import shutil
+
+        shutil.rmtree(tmp_videos, ignore_errors=True)
+        shutil.rmtree(tmp_output, ignore_errors=True)
 
 
 # ── AC-1.1: config validation matrix (422) ──────────────────────────────────

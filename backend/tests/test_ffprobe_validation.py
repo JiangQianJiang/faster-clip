@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.services.ffprobe import CorruptedVideo, probe
+from app.services.ffprobe import CorruptedVideo, DurationTooLong, probe
 
 
 def _make_mock_subprocess(returncode=0, stdout="{}", stderr=""):
@@ -111,6 +111,35 @@ class TestProbeRejectsUnreadableStream:
 
 
 class TestProbeAcceptsValidStream:
+    def test_twelve_hour_video_passes_duration_validation(self):
+        """qwen3-asr-flash-filetrans supports recordings up to 12 hours."""
+        out = _mock_ffprobe_output(
+            codec_name="h264",
+            width=1920,
+            height=1080,
+            container="mp4",
+            duration=12 * 60 * 60,
+        )
+        with patch("subprocess.run", return_value=_make_mock_subprocess(stdout=out)):
+            info = probe("/fake/video.mp4")
+            assert info.duration == 12 * 60 * 60
+
+    def test_video_longer_than_twelve_hours_is_rejected(self):
+        """Recordings beyond the ASR provider's 12h filetrans limit are rejected."""
+        out = _mock_ffprobe_output(
+            codec_name="h264",
+            width=1920,
+            height=1080,
+            container="mp4",
+            duration=12 * 60 * 60 + 1,
+        )
+        with patch("subprocess.run", return_value=_make_mock_subprocess(stdout=out)):
+            try:
+                probe("/fake/video.mp4")
+                assert False, "should have raised DurationTooLong"
+            except DurationTooLong as e:
+                assert "最长 12 小时" in str(e)
+
     def test_h264_mp4(self):
         """Standard H.264 MP4 passes probe."""
         out = _mock_ffprobe_output(codec_name="h264", width=1920, height=1080, container="mp4")

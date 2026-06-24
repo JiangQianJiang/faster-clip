@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+EMPTY_SETTINGS_ENV = {"APP_SETTINGS_PATH": os.devnull}
+
 
 def _reload_settings():
     """Reload the config module so os.getenv re-reads the environment."""
@@ -23,6 +25,7 @@ def test_startup_missing_asr_provider_fails_with_clear_error():
         with patch.dict(
             os.environ,
             {
+                **EMPTY_SETTINGS_ENV,
                 "API_KEY_ENCRYPTION_KEY": "gCW0ZvxPWL4R5PMVxpLNMCNQ2xhT1NWK_vDXI5_OHOk=",
             },
             clear=True,
@@ -49,6 +52,7 @@ def test_startup_valid_asr_provider_passes():
         with patch.dict(
             os.environ,
             {
+                **EMPTY_SETTINGS_ENV,
                 "DEFAULT_ASR_PROVIDER": "whisper_api",
                 "API_KEY_ENCRYPTION_KEY": "gCW0ZvxPWL4R5PMVxpLNMCNQ2xhT1NWK_vDXI5_OHOk=",
             },
@@ -75,6 +79,7 @@ def test_startup_invalid_asr_provider_value_fails():
         with patch.dict(
             os.environ,
             {
+                **EMPTY_SETTINGS_ENV,
                 "DEFAULT_ASR_PROVIDER": "openai_whisper",
                 "API_KEY_ENCRYPTION_KEY": "gCW0ZvxPWL4R5PMVxpLNMCNQ2xhT1NWK_vDXI5_OHOk=",
             },
@@ -100,6 +105,7 @@ def test_database_defaults_to_mysql_outside_pytest():
         with patch.dict(
             os.environ,
             {
+                **EMPTY_SETTINGS_ENV,
                 "DEFAULT_ASR_PROVIDER": "qwen",
                 "API_KEY_ENCRYPTION_KEY": "gCW0ZvxPWL4R5PMVxpLNMCNQ2xhT1NWK_vDXI5_OHOk=",
             },
@@ -119,6 +125,7 @@ def test_database_defaults_to_sqlite_during_pytest():
         with patch.dict(
             os.environ,
             {
+                **EMPTY_SETTINGS_ENV,
                 "PYTEST_RUNNING": "true",
                 "DEFAULT_ASR_PROVIDER": "qwen",
                 "API_KEY_ENCRYPTION_KEY": "gCW0ZvxPWL4R5PMVxpLNMCNQ2xhT1NWK_vDXI5_OHOk=",
@@ -129,6 +136,26 @@ def test_database_defaults_to_sqlite_during_pytest():
 
             assert cfg.settings.database_engine == "sqlite"
             assert cfg.settings.database_url.startswith("sqlite:///")
+    finally:
+        _reload_settings()
+
+
+def test_default_video_duration_limit_is_twelve_hours():
+    """Default upload duration cap follows qwen3-asr-flash-filetrans's 12h limit."""
+    try:
+        with patch.dict(
+            os.environ,
+            {
+                **EMPTY_SETTINGS_ENV,
+                "PYTEST_RUNNING": "true",
+                "DEFAULT_ASR_PROVIDER": "qwen",
+                "API_KEY_ENCRYPTION_KEY": "gCW0ZvxPWL4R5PMVxpLNMCNQ2xhT1NWK_vDXI5_OHOk=",
+            },
+            clear=True,
+        ):
+            cfg = _reload_settings()
+
+            assert cfg.settings.max_video_duration_seconds == 12 * 60 * 60
     finally:
         _reload_settings()
 
@@ -147,7 +174,6 @@ def test_settings_file_populates_server_settings(tmp_path):
                     "path": "settings.db",
                 },
                 "upload": {
-                    "max_size_bytes": 1234,
                     "max_video_duration_seconds": 567,
                 },
                 "runtime": {
@@ -198,7 +224,6 @@ def test_settings_file_populates_server_settings(tmp_path):
             assert cfg.settings.database_engine == "sqlite"
             assert cfg.settings.database_url == "sqlite:///settings.db"
             assert cfg.settings.database_path == "settings.db"
-            assert cfg.settings.max_upload_size_bytes == 1234
             assert cfg.settings.max_video_duration_seconds == 567
             assert cfg.settings.ffmpeg_timeout_seconds == 42
             assert cfg.settings.fonts_dir == "/settings/fonts"

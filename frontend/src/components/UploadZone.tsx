@@ -46,7 +46,7 @@ export default function UploadZone({ onFile }: Props) {
         拖拽视频文件到此处或点击选择
       </p>
       <p style={{ margin: "8px 0 0", fontSize: THEME.fontSize.sm, color: THEME.colors.textMuted }}>
-        支持 MP4、MOV、MKV、AVI、WebM、M4V（最大 2GB，最长 2 小时）
+        支持 MP4、MOV、MKV、AVI、WebM、M4V、FLV（最长 12 小时）
       </p>
     </div>
   );

@@ -61,18 +61,12 @@ class Settings:
             _env_or_file("DATABASE_PATH", file_settings, "database.path", "data/live-clipper.db")
         )
 
-        # Upload limits
-        self.max_upload_size_bytes: int = _int_env_or_file(
-            "MAX_UPLOAD_SIZE_BYTES",
-            file_settings,
-            "upload.max_size_bytes",
-            2 * 1024 * 1024 * 1024,
-        )
+        # Upload duration limit
         self.max_video_duration_seconds: int = _int_env_or_file(
             "MAX_VIDEO_DURATION_SECONDS",
             file_settings,
             "upload.max_video_duration_seconds",
-            2 * 60 * 60,
+            12 * 60 * 60,
         )
 
         # Runtime

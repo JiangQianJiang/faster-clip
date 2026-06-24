@@ -20,10 +20,6 @@ export default function Home() {
     setFile(f);
     setError("");
 
-    if (f.size > 2 * 1024 * 1024 * 1024) {
-      setError("文件大小超过 2GB 限制");
-      return;
-    }
 
     if (!isConfigured) {
       setError("请先配置 LLM 模型");

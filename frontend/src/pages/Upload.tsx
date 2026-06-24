@@ -30,11 +30,6 @@ export default function Upload() {
     setUploadProgress(0);
     setError("");
     try {
-      if (file.size > 2 * 1024 * 1024 * 1024) {
-        setError("文件大小超过 2GB 限制");
-        setSubmitting(false);
-        return;
-      }
       const res = await createTask({
         file,
         clipConfig,

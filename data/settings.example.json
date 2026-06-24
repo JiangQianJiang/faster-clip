@@ -9,8 +9,7 @@
     "path": "data/live-clipper.db"
   },
   "upload": {
-    "max_size_bytes": 2147483648,
-    "max_video_duration_seconds": 7200
+    "max_video_duration_seconds": 43200
   },
   "runtime": {
     "ffmpeg_timeout_seconds": 600,
