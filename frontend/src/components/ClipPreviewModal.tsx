@@ -5,10 +5,9 @@ import {
   fetchClipSubtitles,
   getTranscript,
   patchTranscript,
-  getClipDownloadBlobUrl,
   type TranscriptAfterSave,
 } from "../api/client";
-import { authBlobUrl } from "../auth";
+import { authBlobUrl, getAccessToken } from "../auth";
 import ClipSubtitleTrack from "./ClipSubtitleTrack";
 import { THEME } from "../theme";
 import VideoPlayer from "./VideoPlayer";
@@ -58,6 +57,30 @@ function fmtTime(sec: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+export function buildClipPreviewVideoUrl(
+  taskId: string,
+  clipIndex: number,
+  token: string | null,
+): string {
+  const params = new URLSearchParams();
+  params.set("inline", "true");
+  if (token) params.set("token", token);
+  return `/api/tasks/${taskId}/clips/${clipIndex}/download?${params.toString()}`;
+}
+
+export function mediaErrorMessage(code: number | undefined): string {
+  if (code === 4) {
+    return "当前浏览器不支持该视频编码，请尝试下载后查看或使用 Chrome/Safari。";
+  }
+  if (code === 2) {
+    return "视频加载失败，请检查网络后重试。";
+  }
+  if (code === 3) {
+    return "视频解码失败，请尝试下载后查看。";
+  }
+  return "视频无法播放，请尝试下载后查看。";
+}
+
 export default function ClipPreviewModal({
   clip,
   index,
@@ -88,8 +111,8 @@ export default function ClipPreviewModal({
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [videoBlobUrl, setVideoBlobUrl] = useState<string | null>(null);
   const [afterSaveAction, setAfterSaveAction] =
     useState<TranscriptAfterSave>("save_only");
   const [exitDialog, setExitDialog] = useState<"exit" | "close" | null>(null);
@@ -110,15 +133,7 @@ export default function ClipPreviewModal({
   const activeRef = useRef<HTMLDivElement>(null);
   const subMenuRef = useRef<HTMLDivElement>(null);
 
-  // Load video via authenticated fetch (video tag can't send auth headers)
-  // Only fetch once — reused for both playback and download
-  useEffect(() => {
-    let cancelled = false;
-    getClipDownloadBlobUrl(taskId, index)
-      .then((url) => { if (!cancelled) setVideoBlobUrl(url); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [taskId, index]);
+  const videoUrl = buildClipPreviewVideoUrl(taskId, index, getAccessToken());
 
   // Time conversion: video uses local clip time (0 = clip start), editing uses absolute transcript time
   const toLocal = (absolute: number) => {
@@ -350,9 +365,8 @@ export default function ClipPreviewModal({
   };
 
   const handleVideoDownload = () => {
-    if (!videoBlobUrl) return;
     const a = document.createElement("a");
-    a.href = videoBlobUrl;
+    a.href = `/api/tasks/${taskId}/clips/${index}/download?token=${encodeURIComponent(getAccessToken() || "")}`;
     a.download = `clip_${String(index).padStart(3, "0")}.mp4`;
     a.click();
   };
@@ -838,6 +852,20 @@ export default function ClipPreviewModal({
           </div>
         )}
 
+        {videoError && (
+          <div
+            style={{
+              padding: "8px 16px",
+              background: "#fef2f2",
+              color: THEME.colors.errorText,
+              fontSize: 12,
+              borderBottom: "1px solid #fecaca",
+            }}
+          >
+            {videoError}
+          </div>
+        )}
+
         {/* Body */}
         <div style={{ display: "flex", flex: 1, minHeight: 0, flexDirection: "column" }}>
           <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
@@ -851,7 +879,7 @@ export default function ClipPreviewModal({
               <VideoPlayer
                 ref={videoRef}
                 taskId={taskId}
-                src={videoBlobUrl || ""}
+                src={videoUrl}
                 autoPlay
                 activeText={
                   mode === "edit"
@@ -861,6 +889,7 @@ export default function ClipPreviewModal({
                 onTimeUpdate={syncSubtitle}
                 onLoadedMetadata={handleLoadedMetadata}
                 onPlayStateChange={setIsPlaying}
+                onError={(err) => setVideoError(mediaErrorMessage(err?.code))}
                 onEnded={() => {
                   if (mode === "edit") {
                     const last = editingState.present[editingState.present.length - 1];

@@ -443,6 +443,51 @@ def test_download_success_returns_mp4():
         shutil.rmtree(tmp_output, ignore_errors=True)
 
 
+def test_download_inline_returns_inline_content_disposition():
+    """GET download?inline=true returns a browser-preview friendly response."""
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+        db_path = tmp.name
+    try:
+        _setup_temp_db(db_path)
+        task_id = "test-download-inline"
+        tmp_output = tempfile.mkdtemp()
+        task_output = Path(tmp_output) / task_id
+        task_output.mkdir(parents=True, exist_ok=True)
+        clip_file = task_output / "clip_000.mp4"
+        clip_file.write_text("fake mp4 content")
+
+        _insert_task(
+            db_path,
+            task_id,
+            [
+                {
+                    "start_time_s": 10.0,
+                    "end_time_s": 50.0,
+                    "score": 0.9,
+                    "reason": "test",
+                    "status": "success",
+                    "filepath": str(clip_file),
+                }
+            ],
+        )
+
+        client = _make_client()
+        with patch("app.api.clips.OUTPUT_DIR", Path(tmp_output)):
+            response = client.get(f"/api/tasks/{task_id}/clips/0/download?inline=true")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "video/mp4"
+        cd = response.headers["content-disposition"]
+        assert "inline" in cd
+        assert "attachment" not in cd
+        assert "clip_000.mp4" in cd
+    finally:
+        os.unlink(db_path)
+        import shutil
+
+        shutil.rmtree(tmp_output, ignore_errors=True)
+
+
 def test_download_rejects_failed_clip():
     """GET download returns 404 when clip status is 'failed'."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:

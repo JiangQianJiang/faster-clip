@@ -198,7 +198,7 @@ def export_clips_task(
     import os
 
     from app.logging_config import _task_id_var
-    from app.models.task import get_task, update_task_status
+    from app.models.task import ensure_clips_have_ids, get_task, update_task_status
 
     token = _task_id_var.set(task_id)
     start = time_mod.monotonic()
@@ -223,6 +223,11 @@ def export_clips_task(
 
     try:
         clips = json.loads(task.get("clips_json") or "[]")
+    except json.JSONDecodeError:
+        clips = []
+    clips_json_with_ids = ensure_clips_have_ids(json.dumps(clips, ensure_ascii=False))
+    try:
+        clips = json.loads(clips_json_with_ids or "[]")
     except json.JSONDecodeError:
         clips = []
     output_dir = os.path.join("data", "output", task_id)
@@ -298,7 +303,6 @@ def export_clips_task(
                 video_duration=video_duration,
                 subtitle_style_cfg=subtitle_style_cfg,
             )
-            was_success = clip.get("status") == "success"
             clip["filepath"] = out.get("video", "")
             clip["thumbnail_path"] = out.get("thumbnail", "")
             clip["export_start_time_s"] = out.get("export_start", clip.get("start_time_s", 0))
@@ -319,19 +323,31 @@ def export_clips_task(
     if _fresh is not None:
         try:
             fresh_clips = json.loads(_fresh.get("clips_json") or "[]")
-            # Match exported results back to current clips by index
+            fresh_json_with_ids = ensure_clips_have_ids(json.dumps(fresh_clips, ensure_ascii=False))
+            fresh_clips = json.loads(fresh_json_with_ids or "[]")
+            fresh_by_clip_id = {
+                str(fc.get("clip_id")): fc
+                for fc in fresh_clips
+                if isinstance(fc, dict) and fc.get("clip_id")
+            }
+            # Match exported results back to current clips by stable clip_id,
+            # falling back to index for legacy data that cannot be identified.
             for idx, exported in selected:
-                if idx < len(fresh_clips):
+                clip_id = str(exported.get("clip_id") or "")
+                fc = fresh_by_clip_id.get(clip_id) if clip_id else None
+                if fc is None and not clip_id and idx < len(fresh_clips):
                     fc = fresh_clips[idx]
-                    fc["status"] = exported.get("status", fc.get("status"))
-                    fc["filepath"] = exported.get("filepath", fc.get("filepath"))
-                    fc["thumbnail_path"] = exported.get("thumbnail_path", fc.get("thumbnail_path"))
-                    fc["export_start_time_s"] = exported.get(
-                        "export_start_time_s", fc.get("export_start_time_s")
-                    )
-                    fc["export_end_time_s"] = exported.get(
-                        "export_end_time_s", fc.get("export_end_time_s")
-                    )
+                if fc is None:
+                    continue
+                fc["status"] = exported.get("status", fc.get("status"))
+                fc["filepath"] = exported.get("filepath", fc.get("filepath"))
+                fc["thumbnail_path"] = exported.get("thumbnail_path", fc.get("thumbnail_path"))
+                fc["export_start_time_s"] = exported.get(
+                    "export_start_time_s", fc.get("export_start_time_s")
+                )
+                fc["export_end_time_s"] = exported.get(
+                    "export_end_time_s", fc.get("export_end_time_s")
+                )
         except json.JSONDecodeError:
             fresh_clips = clips  # fall back to original
         clips = fresh_clips

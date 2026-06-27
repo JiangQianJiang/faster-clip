@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/tasks", tags=["clips"])
 
 
 @router.get("/{task_id}/clips/{clip_index}/download")
-async def download_clip(task_id: str, clip_index: str):
+async def download_clip(task_id: str, clip_index: str, inline: bool = False):
     try:
         idx = int(clip_index)
     except (ValueError, TypeError):
@@ -57,10 +57,11 @@ async def download_clip(task_id: str, clip_index: str):
         raise HTTPException(404, detail="片段文件不存在")
 
     filename = os.path.basename(abs_filepath)
+    disposition = "inline" if inline else "attachment"
     return FileResponse(
         path=abs_filepath,
         media_type="video/mp4",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'{disposition}; filename="{filename}"'},
     )
 
 

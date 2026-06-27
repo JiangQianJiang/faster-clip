@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 import subprocess
 import time as time_mod
 
@@ -51,6 +52,16 @@ class StageError(Exception):
 
 # Containers that browsers can play natively via <video> element
 BROWSER_PLAYABLE_CONTAINERS = {"mp4", "webm"}
+
+
+def _clip_artifact_stem(index: int, clip: dict) -> str:
+    """Return a stable, filesystem-safe stem for clip export artifacts."""
+    clip_id = str(clip.get("clip_id") or "").strip()
+    if clip_id:
+        safe = re.sub(r"[^A-Za-z0-9_-]+", "_", clip_id).strip("_")
+        if safe:
+            return f"clip_{safe}"
+    return f"clip_{index:03d}"
 
 
 def _generate_preview(video_path: str, container: str) -> str | None:
@@ -341,7 +352,8 @@ def _export_clip(
         video_duration,
     )
 
-    clip_name = f"clip_{index:03d}.mp4"
+    artifact_stem = _clip_artifact_stem(index, clip)
+    clip_name = f"{artifact_stem}.mp4"
     out_video = os.path.join(output_dir, clip_name)
 
     # Always pre-generate subtitle files (best-effort, before burn path so SRT
@@ -408,6 +420,8 @@ def _export_clip(
             "fast",
             "-c:a",
             "aac",
+            "-movflags",
+            "+faststart",
             out_video,
         ]
     else:
@@ -426,6 +440,8 @@ def _export_clip(
             "fast",
             "-c:a",
             "aac",
+            "-movflags",
+            "+faststart",
             out_video,
         ]
 
@@ -455,7 +471,7 @@ def _export_clip(
         raise RuntimeError(f"ffmpeg 导出失败: {err_tail}")
 
     # Thumbnail at 320x180 (16:9)
-    thumb_name = f"clip_{index:03d}.jpg"
+    thumb_name = f"{artifact_stem}.jpg"
     out_thumb = os.path.join(output_dir, thumb_name)
     mid = (export_start + export_end) / 2
     thumb_cmd = [

@@ -118,6 +118,37 @@ def test_export_clip_produces_playable_mp4(test_video_and_dir):
     assert float(info["format"]["duration"]) > 0
 
 
+def test_export_clip_writes_faststart_mp4(test_video_and_dir):
+    """Exported MP4 places moov before mdat so browsers can start playback early."""
+    _, video, outdir = test_video_and_dir
+    clip = {
+        "start_time_s": 2.0,
+        "end_time_s": 5.0,
+        "score": 0.95,
+        "reason": "highlight",
+    }
+
+    result = _export_clip(
+        video,
+        outdir,
+        10,
+        clip,
+        buffer=1,
+        burn=False,
+        segments=None,
+        max_duration=120,
+        video_duration=10,
+    )
+
+    with open(result["video"], "rb") as f:
+        data = f.read()
+    moov_pos = data.find(b"moov")
+    mdat_pos = data.find(b"mdat")
+    assert moov_pos != -1
+    assert mdat_pos != -1
+    assert moov_pos < mdat_pos
+
+
 # ── Export duration within bounds ────────────────────────────────────────────
 
 

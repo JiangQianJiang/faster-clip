@@ -230,6 +230,143 @@ def test_export_clips_task_full_success():
     assert "thumbnail_path" in final_clips[0]
 
 
+def test_export_clips_task_patches_current_clip_by_clip_id_after_reorder():
+    """export_clips_task maps export results back by clip_id, not stale index."""
+    import json
+
+    from app.worker.celery_app import export_clips_task
+
+    task_id = "test-export-reordered"
+    original_clips = [
+        {"clip_id": "clip-a", "start_time_s": 0, "end_time_s": 10, "score": 9},
+        {"clip_id": "clip-b", "start_time_s": 10, "end_time_s": 20, "score": 8},
+    ]
+    reordered_clips = [
+        {"clip_id": "clip-b", "start_time_s": 10, "end_time_s": 20, "score": 8},
+        {"clip_id": "clip-a", "start_time_s": 0, "end_time_s": 10, "score": 9},
+    ]
+    get_task_calls = 0
+
+    def fake_get_task(tid):
+        nonlocal get_task_calls
+        get_task_calls += 1
+        clips = original_clips if get_task_calls == 1 else reordered_clips
+        return {
+            "id": tid,
+            "status": "done",
+            "video_path": "/tmp/v.mp4",
+            "config_json": "{}",
+            "clips_json": json.dumps(clips),
+        }
+
+    fake_statuses = []
+
+    def fake_update(tid, status, **kw):
+        fake_statuses.append((status, kw))
+
+    def fake_clip(
+        vp,
+        od,
+        idx,
+        cl,
+        buf,
+        burn,
+        segs=None,
+        max_duration=120,
+        video_duration=0,
+        subtitle_style_cfg=None,
+    ):
+        return {
+            "video": f"{od}/{cl['clip_id']}.mp4",
+            "thumbnail": f"{od}/{cl['clip_id']}.jpg",
+            "export_start": cl["start_time_s"],
+            "export_end": cl["end_time_s"],
+        }
+
+    with (
+        patch("app.models.task.get_task", fake_get_task),
+        patch("app.models.task.update_task_status", fake_update),
+        patch("app.worker.pipeline._export_clip", fake_clip),
+        patch("app.services.ffprobe.probe", return_value=MagicMock(duration=300.0)),
+        patch("os.makedirs"),
+        patch("os.path.isfile", return_value=False),
+        patch("builtins.open", new_callable=lambda: None),
+    ):
+        export_clips_task.run(task_id=task_id, clip_indices=None, burn_subtitle=False)
+
+    final_clips = json.loads(fake_statuses[-1][1]["clips_json"])
+    assert final_clips[0]["clip_id"] == "clip-b"
+    assert final_clips[0]["filepath"].endswith("clip-b.mp4")
+    assert final_clips[1]["clip_id"] == "clip-a"
+    assert final_clips[1]["filepath"].endswith("clip-a.mp4")
+
+
+def test_export_clips_task_does_not_patch_different_clip_when_clip_id_missing_from_fresh_data():
+    """If a clip changes during export, stale export fields are not patched by index."""
+    import json
+
+    from app.worker.celery_app import export_clips_task
+
+    task_id = "test-export-changed"
+    original_clips = [
+        {"clip_id": "clip-a", "start_time_s": 0, "end_time_s": 10, "score": 9},
+    ]
+    changed_clips = [
+        {"clip_id": "clip-c", "start_time_s": 40, "end_time_s": 50, "score": 7},
+    ]
+    get_task_calls = 0
+
+    def fake_get_task(tid):
+        nonlocal get_task_calls
+        get_task_calls += 1
+        clips = original_clips if get_task_calls == 1 else changed_clips
+        return {
+            "id": tid,
+            "status": "done",
+            "video_path": "/tmp/v.mp4",
+            "config_json": "{}",
+            "clips_json": json.dumps(clips),
+        }
+
+    fake_statuses = []
+
+    def fake_clip(
+        vp,
+        od,
+        idx,
+        cl,
+        buf,
+        burn,
+        segs=None,
+        max_duration=120,
+        video_duration=0,
+        subtitle_style_cfg=None,
+    ):
+        return {
+            "video": f"{od}/{cl['clip_id']}.mp4",
+            "thumbnail": f"{od}/{cl['clip_id']}.jpg",
+            "export_start": cl["start_time_s"],
+            "export_end": cl["end_time_s"],
+        }
+
+    with (
+        patch("app.models.task.get_task", fake_get_task),
+        patch(
+            "app.models.task.update_task_status",
+            side_effect=lambda tid, status, **kw: fake_statuses.append((status, kw)),
+        ),
+        patch("app.worker.pipeline._export_clip", fake_clip),
+        patch("app.services.ffprobe.probe", return_value=MagicMock(duration=300.0)),
+        patch("os.makedirs"),
+        patch("os.path.isfile", return_value=False),
+        patch("builtins.open", new_callable=lambda: None),
+    ):
+        export_clips_task.run(task_id=task_id, clip_indices=None, burn_subtitle=False)
+
+    final_clips = json.loads(fake_statuses[-1][1]["clips_json"])
+    assert final_clips == changed_clips
+
+
 def test_export_clips_task_total_failure():
     """export_clips_task: all ffmpeg failures → error."""
     import json

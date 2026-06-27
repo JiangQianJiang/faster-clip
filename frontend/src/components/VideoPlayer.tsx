@@ -11,6 +11,7 @@ interface Props {
   onPlayStateChange?: (playing: boolean) => void;
   onLoadedMetadata?: () => void;
   onEnded?: () => void;
+  onError?: (error: MediaError | null) => void;
 }
 
 const VideoPlayer = forwardRef<HTMLVideoElement, Props>(function VideoPlayer(
@@ -24,6 +25,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, Props>(function VideoPlayer(
     onPlayStateChange,
     onLoadedMetadata,
     onEnded,
+    onError,
   },
   ref,
 ) {
@@ -54,6 +56,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, Props>(function VideoPlayer(
         onPlay={() => onPlayStateChange?.(true)}
         onPause={() => onPlayStateChange?.(false)}
         onEnded={onEnded}
+        onError={(e) => onError?.(e.currentTarget.error)}
         style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
       />
       <DraggableSubtitleOverlay taskId={taskId} text={activeText} />
