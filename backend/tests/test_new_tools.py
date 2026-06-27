@@ -260,9 +260,56 @@ def test_regenerate_subtitles_rewrites_clip_sidecars(monkeypatch, tmp_path):
     assert result.success is True
     assert result.data["clip_subtitle_files"] == 3
     for ext in ("srt", "vtt", "ass"):
-        path = Path(output_dir / task_id / f"clip_000.{ext}")
+        path = Path(output_dir / task_id / f"clip_001.{ext}")
         assert path.exists()
         assert "第一句字幕" in path.read_text(encoding="utf-8")
+
+
+def test_delete_clip_clears_shifted_metadata_and_stale_sidecars(monkeypatch, tmp_path):
+    """Deleting a middle clip renumbers remaining clips without stale sidecars."""
+    output_dir = _use_temp_task_store(monkeypatch, tmp_path)
+    import app.tools.user.delete_clip as delete_mod
+
+    monkeypatch.setattr(delete_mod, "OUTPUT_DIR", output_dir)
+    task_dir = output_dir / "placeholder"
+    clips = []
+    for index in range(3):
+        clips.append(
+            {
+                "start_time_s": index * 10.0,
+                "end_time_s": index * 10.0 + 5.0,
+                "status": "success",
+                "filepath": str(task_dir / f"clip_{index + 1:03d}.mp4"),
+                "thumbnail_path": str(task_dir / f"clip_{index + 1:03d}.jpg"),
+                "export_start_time_s": index * 10.0,
+                "export_end_time_s": index * 10.0 + 5.0,
+            }
+        )
+    task_id = _make_task(clips=clips)
+    task_dir = output_dir / task_id
+    task_dir.mkdir(parents=True)
+    for index in range(3):
+        for ext in ("srt", "vtt", "ass"):
+            (task_dir / f"clip_{index + 1:03d}.{ext}").write_text("sidecar", encoding="utf-8")
+    (task_dir / "clip_001.srt").write_text("keep first", encoding="utf-8")
+
+    from app.tools.user.delete_clip import _delete_clip
+
+    result = asyncio.run(_delete_clip.execute(task_id=task_id, clip_indices=[1]))
+
+    assert result.success is True
+    assert (task_dir / "clip_001.srt").read_text(encoding="utf-8") == "keep first"
+    assert not (task_dir / "clip_002.srt").exists()
+    assert not (task_dir / "clip_003.srt").exists()
+
+    from app.models.task import get_task
+
+    updated_clips = json.loads(get_task(task_id)["clips_json"])
+    assert len(updated_clips) == 2
+    assert updated_clips[0]["status"] == "success"
+    assert updated_clips[1]["status"] == "pending"
+    assert "filepath" not in updated_clips[1]
+    assert "thumbnail_path" not in updated_clips[1]
 
 
 def test_regenerate_subtitles_uses_current_transcript_when_raw_exists(monkeypatch, tmp_path):

@@ -86,9 +86,10 @@ class TestGenerateClipSubtitles:
             paths = generate_clip_subtitles(segments, 10, 20, tmpdir, 0)
             assert len(paths) == 3
             for ext in ("srt", "vtt", "ass"):
-                fpath = os.path.join(tmpdir, f"clip_000.{ext}")
+                fpath = os.path.join(tmpdir, f"clip_001.{ext}")
                 assert os.path.isfile(fpath), f"Missing {fpath}"
                 assert fpath in paths
+                assert not os.path.exists(os.path.join(tmpdir, f"clip_000.{ext}"))
 
     def test_srt_content_correct(self):
         segments = [
@@ -96,7 +97,7 @@ class TestGenerateClipSubtitles:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             generate_clip_subtitles(segments, 50, 60, tmpdir, 0)
-            with open(os.path.join(tmpdir, "clip_000.srt")) as f:
+            with open(os.path.join(tmpdir, "clip_001.srt")) as f:
                 content = f.read()
             assert "00:00:00" in content
             assert "Hello world" in content
@@ -107,7 +108,7 @@ class TestGenerateClipSubtitles:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
-            with open(os.path.join(tmpdir, "clip_000.vtt")) as f:
+            with open(os.path.join(tmpdir, "clip_001.vtt")) as f:
                 content = f.read()
             assert content.startswith("WEBVTT")
 
@@ -117,7 +118,7 @@ class TestGenerateClipSubtitles:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
-            with open(os.path.join(tmpdir, "clip_000.ass")) as f:
+            with open(os.path.join(tmpdir, "clip_001.ass")) as f:
                 content = f.read()
             assert "[Script Info]" in content
 
@@ -126,7 +127,7 @@ class TestGenerateClipSubtitles:
             paths = generate_clip_subtitles([], 0, 10, tmpdir, 0)
             assert len(paths) == 3
             for ext in ("srt", "vtt", "ass"):
-                fpath = os.path.join(tmpdir, f"clip_000.{ext}")
+                fpath = os.path.join(tmpdir, f"clip_001.{ext}")
                 assert os.path.isfile(fpath)
 
     def test_best_effort_does_not_raise(self):
@@ -187,7 +188,7 @@ class TestExportPreservesSegments:
         segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
             generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
-            srt_path = os.path.join(tmpdir, "clip_000.srt")
+            srt_path = os.path.join(tmpdir, "clip_001.srt")
             assert os.path.isfile(srt_path)
             with open(srt_path) as f:
                 content = f.read()
@@ -199,7 +200,7 @@ class TestExportPreservesSegments:
         segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
             generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
-            vtt_path = os.path.join(tmpdir, "clip_000.vtt")
+            vtt_path = os.path.join(tmpdir, "clip_001.vtt")
             assert os.path.isfile(vtt_path)
             with open(vtt_path) as f:
                 content = f.read()
@@ -211,7 +212,7 @@ class TestExportPreservesSegments:
         segments = [{"start_time_s": 0, "end_time_s": 5, "text": long_text}]
         with tempfile.TemporaryDirectory() as tmpdir:
             generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
-            ass_path = os.path.join(tmpdir, "clip_000.ass")
+            ass_path = os.path.join(tmpdir, "clip_001.ass")
             assert os.path.isfile(ass_path)
             with open(ass_path) as f:
                 content = f.read()
@@ -225,7 +226,7 @@ class TestExportPreservesSegments:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
-            srt_path = os.path.join(tmpdir, "clip_000.srt")
+            srt_path = os.path.join(tmpdir, "clip_001.srt")
             with open(srt_path) as f:
                 content = f.read()
             # The original text (with single newline) should appear verbatim.
@@ -240,7 +241,7 @@ class TestExportPreservesSegments:
         ]
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = generate_clip_subtitles(segments, 0, 10, tmpdir, 0)
-            srt_path = os.path.join(tmpdir, "clip_000.srt")
+            srt_path = os.path.join(tmpdir, "clip_001.srt")
             with open(srt_path) as f:
                 content = f.read()
             assert "短字幕" in content

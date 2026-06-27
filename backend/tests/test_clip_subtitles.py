@@ -50,7 +50,7 @@ def _make_client():
 
 def _write_subtitle_file(output_dir, clip_index, ext, content):
     os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, f"clip_{clip_index:03d}.{ext}")
+    path = os.path.join(output_dir, f"clip_{clip_index + 1:03d}.{ext}")
     with open(path, "w") as f:
         f.write(content)
     return path
@@ -64,8 +64,8 @@ _CLIP_SUCCESS = {
     "score": 8.5,
     "reason": "Great moment",
     "status": "success",
-    "filepath": "data/output/TESTID/clip_000.mp4",
-    "thumbnail_path": "data/output/TESTID/clip_000.jpg",
+    "filepath": "data/output/TESTID/clip_001.mp4",
+    "thumbnail_path": "data/output/TESTID/clip_001.jpg",
 }
 
 
@@ -91,7 +91,10 @@ class TestDownloadSubtitle:
             client = _make_client()
             resp = client.get(f"/api/tasks/{task_id}/clips/0/subtitles")
             assert resp.status_code == 200
-            assert "attachment" in resp.headers.get("content-disposition", "")
+            content_disposition = resp.headers.get("content-disposition", "")
+            assert "attachment" in content_disposition
+            assert "clip_001.srt" in content_disposition
+            assert "clip_000.srt" not in content_disposition
         finally:
             os.unlink(db_path)
 

@@ -11,7 +11,7 @@ test.describe("Home AI-First Flow", () => {
     // Track whether POST /api/tasks is ever called
     let taskPostCalled = false;
 
-    await page.route("**/api/tasks", (route) => {
+    await page.route(/\/api\/tasks(?:\?.*)?$/, (route) => {
       if (route.request().method() === "POST") {
         taskPostCalled = true;
         route.fulfill({ json: {} });
@@ -24,8 +24,19 @@ test.describe("Home AI-First Flow", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    // Clear localStorage to simulate unconfigured, then reload
-    await page.evaluate(() => localStorage.clear());
+    // Seed empty settings to simulate an unconfigured model.
+    await page.evaluate(() => {
+      localStorage.setItem(
+        "global_llm_settings",
+        JSON.stringify({
+          llmBaseUrl: "",
+          llmModel: "",
+          asrProvider: "qwen",
+          asrBaseUrl: "",
+          asrModel: "",
+        }),
+      );
+    });
     await page.reload();
     await page.waitForLoadState("networkidle");
 
@@ -52,7 +63,7 @@ test.describe("Home AI-First Flow", () => {
     let postFormFields: string[] = [];
 
     // Mock GET /api/tasks (task list) and POST /api/tasks (create)
-    await page.route("**/api/tasks", async (route) => {
+    await page.route(/\/api\/tasks(?:\?.*)?$/, async (route) => {
       if (route.request().method() === "POST") {
         const postData = route.request().postDataBuffer();
         if (postData) {

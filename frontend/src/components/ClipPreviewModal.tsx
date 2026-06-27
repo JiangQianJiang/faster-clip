@@ -28,6 +28,7 @@ import {
   type ServerValidationIssue,
   type SegmentIssue,
 } from "../utils/subtitleEditing";
+import { clipDisplayLabel, clipDownloadFilename } from "../utils/clipNumbering";
 
 interface Props {
   clip: Clip;
@@ -357,7 +358,7 @@ export default function ClipPreviewModal({
       const url = await authBlobUrl(getClipSubtitleUrl(taskId, index, format));
       const a = document.createElement("a");
       a.href = url;
-      a.download = `clip_${String(index).padStart(3, "0")}.${format}`;
+      a.download = clipDownloadFilename(index, format);
       a.click();
     } catch {
       // silently fail
@@ -367,7 +368,7 @@ export default function ClipPreviewModal({
   const handleVideoDownload = () => {
     const a = document.createElement("a");
     a.href = `/api/tasks/${taskId}/clips/${index}/download?token=${encodeURIComponent(getAccessToken() || "")}`;
-    a.download = `clip_${String(index).padStart(3, "0")}.mp4`;
+    a.download = clipDownloadFilename(index, "mp4");
     a.click();
   };
 
@@ -616,7 +617,7 @@ export default function ClipPreviewModal({
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ color: THEME.colors.textPrimary, fontSize: 14, fontWeight: 600 }}>
-              片段 #{index + 1}
+              {clipDisplayLabel(index)}
             </span>
             <span style={{ color: THEME.colors.textMuted, fontSize: 13 }}>
               {fmt(clip.export_start_time_s ?? clip.start_time_s)} – {fmt(clip.export_end_time_s ?? clip.end_time_s)}

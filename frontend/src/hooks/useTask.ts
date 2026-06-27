@@ -12,15 +12,21 @@ export function useTask(taskId: string | undefined) {
   const stageSinceRef = useRef(Date.now());
   // Track the active taskId to cancel stale requests
   const activeTaskIdRef = useRef<string | undefined>(undefined);
+  const previousTaskIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (!taskId) return;
 
-    // Reset state immediately when switching tasks — avoids showing stale data
-    setTask(null);
-    setError(null);
-    setNotFound(false);
-    setStaleWarning(false);
+    const taskIdChanged = previousTaskIdRef.current !== taskId;
+    previousTaskIdRef.current = taskId;
+    // Reset state immediately when switching tasks. Same-task refreshes keep
+    // the current data mounted so child UI state, including chat turns, survives.
+    if (taskIdChanged) {
+      setTask(null);
+      setError(null);
+      setNotFound(false);
+      setStaleWarning(false);
+    }
     delayRef.current = 2000;
     lastStageRef.current = "";
     stageSinceRef.current = Date.now();

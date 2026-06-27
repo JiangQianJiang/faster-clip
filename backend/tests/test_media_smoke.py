@@ -259,7 +259,7 @@ def test_generate_srt_filters_relevant_segments():
             {"start_time_s": 8.0, "end_time_s": 10.0, "text": "after"},
         ]
         paths = generate_clip_subtitles(segments, 2.5, 7.5, tmpdir, 0)
-        srt_path = os.path.join(tmpdir, "clip_000.srt")
+        srt_path = os.path.join(tmpdir, "clip_001.srt")
 
         assert os.path.isfile(srt_path)
         with open(srt_path) as f:

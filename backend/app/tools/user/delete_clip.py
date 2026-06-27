@@ -15,16 +15,19 @@ def _cleanup_sidecar_files(task_id: str, clip_index: int) -> list[str]:
     task_output_dir = os.path.realpath(OUTPUT_DIR / task_id)
     removed = []
     for ext in ("srt", "vtt", "ass"):
-        sidecar = os.path.join(str(OUTPUT_DIR / task_id), f"clip_{clip_index:03d}.{ext}")
-        real = os.path.realpath(sidecar)
-        if not real.startswith(task_output_dir + os.sep) and real != task_output_dir:
-            continue
-        if os.path.isfile(real):
-            try:
-                os.unlink(real)
-                removed.append(sidecar)
-            except OSError:
-                pass
+        candidates = [os.path.join(str(OUTPUT_DIR / task_id), f"clip_{clip_index + 1:03d}.{ext}")]
+        if clip_index == 0:
+            candidates.append(os.path.join(str(OUTPUT_DIR / task_id), f"clip_000.{ext}"))
+        for sidecar in dict.fromkeys(candidates):
+            real = os.path.realpath(sidecar)
+            if not real.startswith(task_output_dir + os.sep) and real != task_output_dir:
+                continue
+            if os.path.isfile(real):
+                try:
+                    os.unlink(real)
+                    removed.append(sidecar)
+                except OSError:
+                    pass
     return removed
 
 
@@ -54,17 +57,7 @@ def _cleanup_clip_files(task_id: str, clip: dict, clip_index: int | None = None)
 
     # Subtitle sidecars for this clip index
     if clip_index is not None:
-        for ext in ("srt", "vtt", "ass"):
-            sidecar = os.path.join(str(OUTPUT_DIR / task_id), f"clip_{clip_index:03d}.{ext}")
-            real = os.path.realpath(sidecar)
-            if not real.startswith(task_output_dir + os.sep) and real != task_output_dir:
-                continue
-            if os.path.isfile(real):
-                try:
-                    os.unlink(real)
-                    removed.append(sidecar)
-                except OSError:
-                    pass
+        removed.extend(_cleanup_sidecar_files(task_id, clip_index))
 
     return removed
 
@@ -152,7 +145,7 @@ class DeleteClip(Tool):
             files_removed.extend(_cleanup_clip_files(task_id, clip, clip_index=i))
             # Invalidate sidecars for all clips that shifted after this deletion
             for shifted_idx in range(i, len(clips)):
-                files_removed.extend(_cleanup_sidecar_files(task_id, shifted_idx))
+                files_removed.extend(_cleanup_sidecar_files(task_id, shifted_idx + 1))
             # After popping, remaining clips from index i onward have shifted up.
             # Their stored filepaths still point to old indices. Clear export state
             # so a re-export produces correct filenames matching their new positions.

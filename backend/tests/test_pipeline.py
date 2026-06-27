@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.services.asr import ASRError, AuthError
-from app.worker.pipeline import StageError, run
+from app.worker.pipeline import StageError, _clip_artifact_stem, run
 
 
 def _make_info(duration=7200):
@@ -55,6 +55,12 @@ def _make_config():
         "buffer_seconds": 3,
         "burn_subtitle": False,
     }
+
+
+def test_clip_artifact_stem_fallback_is_one_based():
+    assert _clip_artifact_stem(0, {}) == "clip_001"
+    assert _clip_artifact_stem(11, {}) == "clip_012"
+    assert _clip_artifact_stem(0, {"clip_id": "abc-123"}) == "clip_abc-123"
 
 
 def test_partial_export_failure_done_with_mixed_status():

@@ -129,7 +129,8 @@ export function useChat(taskId: string | undefined, initialChatHistory?: string)
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Reset state when switching tasks
+  // Reset state when switching tasks. Same-task task refreshes can update
+  // chatHistoryJson after a tool run; they should not wipe the active turn.
   useEffect(() => {
     abortRef.current?.abort();
     setIsStreaming(false);
@@ -140,7 +141,7 @@ export function useChat(taskId: string | undefined, initialChatHistory?: string)
     } else {
       setMessages([]);
     }
-  }, [taskId, initialChatHistory]);
+  }, [taskId]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -218,6 +219,10 @@ export function useChat(taskId: string | undefined, initialChatHistory?: string)
                 case "text_delta":
                   // Incremental token — append to current assistant message
                   assistantContent += data;
+                  if (currentAssistantId === null) {
+                    currentAssistantId = generateUUID();
+                    turnAssistantIds.add(currentAssistantId);
+                  }
                   setMessages((prev) => {
                     const updated = [...prev];
                     // Remove thinking message if present
@@ -229,18 +234,12 @@ export function useChat(taskId: string | undefined, initialChatHistory?: string)
                     ) {
                       updated.pop();
                     }
-                    // Update or create assistant message
-                    const last = updated[updated.length - 1];
-                    if (last?.role === "assistant" && !last.toolCalls?.length) {
-                      last.content = assistantContent;
-                      currentAssistantId = last.id;
-                      turnAssistantIds.add(last.id);
+                    const existing = updated.find((m) => m.id === currentAssistantId);
+                    if (existing) {
+                      existing.content = assistantContent;
                     } else {
-                      const newId = generateUUID();
-                      currentAssistantId = newId;
-                      turnAssistantIds.add(newId);
                       updated.push({
-                        id: newId,
+                        id: currentAssistantId as string,
                         role: "assistant",
                         content: assistantContent,
                       });
@@ -253,6 +252,10 @@ export function useChat(taskId: string | undefined, initialChatHistory?: string)
                   // Full text block — replace for reconciliation after streaming,
                   // or standalone text blocks alongside tool_use.
                   assistantContent = data;
+                  if (currentAssistantId === null) {
+                    currentAssistantId = generateUUID();
+                    turnAssistantIds.add(currentAssistantId);
+                  }
                   setMessages((prev) => {
                     const updated = [...prev];
                     // Remove thinking message if present
@@ -264,18 +267,12 @@ export function useChat(taskId: string | undefined, initialChatHistory?: string)
                     ) {
                       updated.pop();
                     }
-                    // Update or create assistant message
-                    const last = updated[updated.length - 1];
-                    if (last?.role === "assistant" && !last.toolCalls?.length) {
-                      last.content = assistantContent;
-                      currentAssistantId = last.id;
-                      turnAssistantIds.add(last.id);
+                    const existing = updated.find((m) => m.id === currentAssistantId);
+                    if (existing) {
+                      existing.content = assistantContent;
                     } else {
-                      const newId = generateUUID();
-                      currentAssistantId = newId;
-                      turnAssistantIds.add(newId);
                       updated.push({
-                        id: newId,
+                        id: currentAssistantId as string,
                         role: "assistant",
                         content: assistantContent,
                       });
@@ -293,31 +290,18 @@ export function useChat(taskId: string | undefined, initialChatHistory?: string)
                   });
                   // Create or reuse an assistant message for tool calls
                   if (currentAssistantId === null) {
+                    currentAssistantId = generateUUID();
+                    turnAssistantIds.add(currentAssistantId);
                     setMessages((prev) => {
                       const filtered = prev.filter(
                         (m) => !(m.role === "assistant" && m.content === "正在思考...")
                       );
-                      // Reuse the last assistant message only if it belongs to this turn
-                      const lastAssistant = [...filtered].reverse().find(
-                        (m) => m.role === "assistant" && turnAssistantIds.has(m.id)
-                      );
-                      if (lastAssistant) {
-                        currentAssistantId = lastAssistant.id;
-                        return filtered.map((m) =>
-                          m.id === lastAssistant.id
-                            ? { ...m, toolCalls: [...toolCalls] }
-                            : m
-                        );
-                      }
-                      const newId = generateUUID();
-                      currentAssistantId = newId;
-                      turnAssistantIds.add(newId);
                       return [
                         ...filtered,
                         {
-                          id: newId,
+                          id: currentAssistantId as string,
                           role: "assistant" as const,
-                          content: "",
+                          content: assistantContent,
                           toolCalls: [...toolCalls],
                           checkpointConsumed: false,
                         },

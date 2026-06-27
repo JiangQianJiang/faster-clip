@@ -27,7 +27,7 @@ function sseEvent(type: string, data: unknown): string {
 async function seedGlobalSettings(
   page: import("@playwright/test").Page,
 ) {
-  await page.evaluate(() => {
+  await page.addInitScript(() => {
     localStorage.setItem(
       "global_llm_settings",
       JSON.stringify({
@@ -41,18 +41,61 @@ async function seedGlobalSettings(
   });
 }
 
+async function mockTaskList(page: import("@playwright/test").Page) {
+  await page.route(/\/api\/tasks(?:\?.*)?$/, (route) => {
+    route.fulfill({ json: [] });
+  });
+}
+
+function statusFromTask(task: typeof TASK_WITH_TRANSCRIPT) {
+  return {
+    task_id: task.task_id,
+    status: task.status,
+    stage: task.stage,
+    video_filename: task.video_filename,
+    subtitle_segment_count: task.subtitle_segment_count,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function mockTask(
+  page: import("@playwright/test").Page,
+  task: typeof TASK_WITH_TRANSCRIPT,
+) {
+  await page.route(new RegExp(`/api/tasks/${task.task_id}$`), (route) => {
+    route.fulfill({ json: task });
+  });
+  await page.route(new RegExp(`/api/tasks/${task.task_id}/status$`), (route) => {
+    route.fulfill({ json: statusFromTask(task) });
+  });
+  await page.route(new RegExp(`/api/tasks/${task.task_id}/transcript$`), (route) => {
+    route.fulfill({
+      json: {
+        task_id: task.task_id,
+        available: task.subtitle_segment_count > 0,
+        segment_count: task.subtitle_segment_count > 0 ? 2 : 0,
+        segments:
+          task.subtitle_segment_count > 0
+            ? [
+                { start_time_s: 0, end_time_s: 5, text: "hello" },
+                { start_time_s: 5, end_time_s: 10, text: "world" },
+              ]
+            : [],
+      },
+    });
+  });
+  await mockTaskList(page);
+}
+
 test.describe("AI Chat Mode", () => {
   test("renders chat UI without sending API key in POST body", async ({ page }) => {
     await seedGlobalSettings(page);
 
-    // Mock task endpoint
-    await page.route("**/api/tasks/test-ai-task-001", (route) => {
-      route.fulfill({ json: TASK_WITH_TRANSCRIPT });
-    });
+    await mockTask(page, TASK_WITH_TRANSCRIPT);
 
     // Capture POST body to verify key
     let postedBody: Record<string, string> = {};
-    await page.route("**/api/tasks/test-ai-task-001/chat", (route) => {
+    await page.route(/\/api\/tasks\/test-ai-task-001\/chat$/, (route) => {
       postedBody = route.request().postDataJSON() || {};
       const stream = [
         sseEvent("thinking", "thinking"),
@@ -86,12 +129,10 @@ test.describe("AI Chat Mode", () => {
   test("checkpoint shows editor button when transcript exists, opens editor", async ({ page }) => {
     await seedGlobalSettings(page);
 
-    await page.route("**/api/tasks/test-ai-task-001", (route) => {
-      route.fulfill({ json: TASK_WITH_TRANSCRIPT });
-    });
+    await mockTask(page, TASK_WITH_TRANSCRIPT);
 
     // Mock transcript endpoint for editor open
-    await page.route("**/api/tasks/test-ai-task-001/transcript", (route) => {
+    await page.route(/\/api\/tasks\/test-ai-task-001\/transcript$/, (route) => {
       route.fulfill({
         json: {
           task_id: "test-ai-task-001",
@@ -106,13 +147,18 @@ test.describe("AI Chat Mode", () => {
     });
 
     // Mock chat: return analyze_highlights tool_use then checkpoint
-    await page.route("**/api/tasks/test-ai-task-001/chat", (route) => {
+    await page.route(/\/api\/tasks\/test-ai-task-001\/chat$/, (route) => {
       const stream = [
         sseEvent("thinking", "thinking"),
         sseEvent("text", "Let me analyze."),
         sseEvent("tool_start", { tool: "analyze_highlights", input: {} }),
         sseEvent("tool_result", { tool: "analyze_highlights", success: true, user_message: "found 2 clips" }),
-        sseEvent("checkpoint", { tools_completed: ["analyze_highlights"], message: "done" }),
+        sseEvent("checkpoint", {
+          actions: [
+            { label: "打开字幕编辑器", action: "open_editor" },
+            { label: "继续", action: "continue" },
+          ],
+        }),
       ].join("");
       route.fulfill({
         status: 200,
@@ -128,7 +174,8 @@ test.describe("AI Chat Mode", () => {
     await page.click("text=发送");
 
     // Wait for tool card and result text
-    await expect(page.locator("text=analyze_highlights")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("text=analyze_highlights").first()).toBeVisible({ timeout: 10000 });
+    await page.getByRole("button", { name: /analyze_highlights/ }).first().click();
     await expect(page.locator("text=found 2 clips")).toBeVisible({ timeout: 5000 });
 
     // Editor button should be visible (transcript exists)
@@ -145,16 +192,19 @@ test.describe("AI Chat Mode", () => {
   test("checkpoint hides editor button when no transcript", async ({ page }) => {
     await seedGlobalSettings(page);
 
-    await page.route("**/api/tasks/test-ai-task-002", (route) => {
-      route.fulfill({ json: TASK_NO_TRANSCRIPT });
-    });
+    await mockTask(page, TASK_NO_TRANSCRIPT);
 
-    await page.route("**/api/tasks/test-ai-task-002/chat", (route) => {
+    await page.route(/\/api\/tasks\/test-ai-task-002\/chat$/, (route) => {
       const stream = [
         sseEvent("thinking", "thinking"),
         sseEvent("tool_start", { tool: "analyze_highlights", input: {} }),
         sseEvent("tool_result", { tool: "analyze_highlights", success: true, user_message: "no clips" }),
-        sseEvent("checkpoint", { tools_completed: ["analyze_highlights"], message: "done" }),
+        sseEvent("checkpoint", {
+          actions: [
+            { label: "打开字幕编辑器", action: "open_editor" },
+            { label: "继续", action: "continue" },
+          ],
+        }),
       ].join("");
       route.fulfill({
         status: 200,
@@ -179,12 +229,10 @@ test.describe("AI Chat Mode", () => {
   test("shows retry UI on stream failure without losing messages", async ({ page }) => {
     await seedGlobalSettings(page);
 
-    await page.route("**/api/tasks/test-ai-task-001", (route) => {
-      route.fulfill({ json: TASK_WITH_TRANSCRIPT });
-    });
+    await mockTask(page, TASK_WITH_TRANSCRIPT);
 
     // Mock chat: return error after connection
-    await page.route("**/api/tasks/test-ai-task-001/chat", (route) => {
+    await page.route(/\/api\/tasks\/test-ai-task-001\/chat$/, (route) => {
       route.abort("connectionreset");
     });
 
@@ -203,11 +251,9 @@ test.describe("AI Chat Mode", () => {
   test("failed checkpoint tool shows error card without checkpoint buttons", async ({ page }) => {
     await seedGlobalSettings(page);
 
-    await page.route("**/api/tasks/test-ai-task-001", (route) => {
-      route.fulfill({ json: TASK_WITH_TRANSCRIPT });
-    });
+    await mockTask(page, TASK_WITH_TRANSCRIPT);
 
-    await page.route("**/api/tasks/test-ai-task-001/chat", (route) => {
+    await page.route(/\/api\/tasks\/test-ai-task-001\/chat$/, (route) => {
       const stream = [
         sseEvent("thinking", "thinking"),
         sseEvent("tool_start", { tool: "analyze_highlights", input: {} }),
@@ -227,7 +273,8 @@ test.describe("AI Chat Mode", () => {
     await page.click("text=发送");
 
     // Failed tool card
-    await expect(page.locator("text=analyze_highlights")).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("text=analyze_highlights").first()).toBeVisible({ timeout: 10000 });
+    await page.getByRole("button", { name: /analyze_highlights/ }).first().click();
     await expect(page.locator("text=LLM 分析失败")).toBeVisible({ timeout: 5000 });
     // Fallback text
     await expect(page.locator("text=Sorry")).toBeVisible({ timeout: 5000 });

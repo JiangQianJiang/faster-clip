@@ -1304,7 +1304,7 @@ class TestPatchTranscript:
 
             assert response.status_code == 200
             for ext in ("srt", "vtt", "ass"):
-                path = Path(tmp_output) / task_id / f"clip_000.{ext}"
+                path = Path(tmp_output) / task_id / f"clip_001.{ext}"
                 assert path.exists(), f"missing {path}"
                 assert "fresh text" in path.read_text(encoding="utf-8")
         finally:
@@ -1347,7 +1347,7 @@ class TestPatchTranscript:
 
             task = get_task(task_id)
             assert json.loads(task["clips_json"]) == clips
-            assert not (Path(tmp_output) / task_id / "clip_000.srt").exists()
+            assert not (Path(tmp_output) / task_id / "clip_001.srt").exists()
         finally:
             os.unlink(db_path)
             import shutil
@@ -1380,7 +1380,7 @@ class TestPatchTranscript:
                 )
 
             assert response.status_code == 200
-            assert not (Path(tmp_output) / task_id / "clip_000.srt").exists()
+            assert not (Path(tmp_output) / task_id / "clip_001.srt").exists()
             from app.models.task import get_task
 
             task = get_task(task_id)

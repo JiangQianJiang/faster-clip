@@ -5,6 +5,7 @@ import { authBlobUrl } from "../auth";
 import { THEME } from "../theme";
 import Button from "../ui/Button";
 import Badge from "../ui/Badge";
+import { clipDisplayLabel, clipDisplayNumber, clipDownloadFilename } from "../utils/clipNumbering";
 
 interface Props {
   clip: Clip;
@@ -93,7 +94,7 @@ export default function ClipCard({ clip, index, taskId, onPreview, onDelete }: P
       const url = await authBlobUrl(getClipSubtitleUrl(taskId, index, format));
       const a = document.createElement("a");
       a.href = url;
-      a.download = `clip_${String(index).padStart(3, "0")}.${format}`;
+      a.download = clipDownloadFilename(index, format);
       a.click();
     } catch {
       // silently fail
@@ -107,7 +108,7 @@ export default function ClipCard({ clip, index, taskId, onPreview, onDelete }: P
       const url = await authBlobUrl(`/api/tasks/${taskId}/clips/${index}/download`);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `clip_${String(index).padStart(3, "0")}.mp4`;
+      a.download = clipDownloadFilename(index, "mp4");
       a.click();
     } catch {
       // Silently fail
@@ -141,7 +142,7 @@ export default function ClipCard({ clip, index, taskId, onPreview, onDelete }: P
         {thumbBlobUrl ? (
           <img
             src={thumbBlobUrl}
-            alt={`片段 ${index + 1}`}
+            alt={`片段 ${clipDisplayNumber(index)}`}
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />
         ) : (
@@ -249,6 +250,9 @@ export default function ClipCard({ clip, index, taskId, onPreview, onDelete }: P
             marginBottom: THEME.spacing.xs,
           }}
         >
+          <span style={{ fontSize: THEME.fontSize.sm, color: THEME.colors.textPrimary, fontWeight: 600 }}>
+            {clipDisplayLabel(index)}
+          </span>
           <span style={{ fontSize: THEME.fontSize.sm, color: THEME.colors.textSecondary }}>
             {fmt(clip.export_start_time_s ?? clip.start_time_s)} - {fmt(clip.export_end_time_s ?? clip.end_time_s)}
           </span>

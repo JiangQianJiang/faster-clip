@@ -435,7 +435,8 @@ def test_download_success_returns_mp4():
         assert response.headers["content-type"] == "video/mp4"
         cd = response.headers["content-disposition"]
         assert "attachment" in cd
-        assert "clip_000.mp4" in cd
+        assert "clip_001.mp4" in cd
+        assert "clip_000.mp4" not in cd
     finally:
         os.unlink(db_path)
         import shutil
@@ -480,7 +481,8 @@ def test_download_inline_returns_inline_content_disposition():
         cd = response.headers["content-disposition"]
         assert "inline" in cd
         assert "attachment" not in cd
-        assert "clip_000.mp4" in cd
+        assert "clip_001.mp4" in cd
+        assert "clip_000.mp4" not in cd
     finally:
         os.unlink(db_path)
         import shutil

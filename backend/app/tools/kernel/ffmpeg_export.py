@@ -91,7 +91,7 @@ class FFmpegExport(Tool):
             export_start = max(0, start_time_s - buffer_seconds)
             export_end = end_time_s + buffer_seconds
             duration = export_end - export_start
-            output_path = os.path.join(output_dir, f"clip_{clip_index:03d}.mp4")
+            output_path = os.path.join(output_dir, f"clip_{clip_index + 1:03d}.mp4")
 
             from app.config import settings
 
@@ -99,7 +99,7 @@ class FFmpegExport(Tool):
 
             if burn_subtitle and segments:
                 # Build temporary subtitle filter
-                srt_path = os.path.join(output_dir, f"clip_{clip_index:03d}_temp.srt")
+                srt_path = os.path.join(output_dir, f"clip_{clip_index + 1:03d}_temp.srt")
                 try:
                     from app.services.subtitle import segments_to_srt
 
@@ -168,7 +168,7 @@ class FFmpegExport(Tool):
 
             # Clean up temp srt
             if burn_subtitle:
-                srt_path = os.path.join(output_dir, f"clip_{clip_index:03d}_temp.srt")
+                srt_path = os.path.join(output_dir, f"clip_{clip_index + 1:03d}_temp.srt")
                 if os.path.isfile(srt_path):
                     os.unlink(srt_path)
 

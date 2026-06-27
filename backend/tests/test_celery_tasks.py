@@ -206,7 +206,7 @@ def test_export_clips_task_full_success():
         subtitle_style_cfg=None,
     ):
         return {
-            "video": f"{od}/clip_{idx:03d}.mp4",
+            "video": f"{od}/clip_{idx + 1:03d}.mp4",
             "thumbnail": f"{od}/thumb_{idx:03d}.jpg",
             "export_start": 0,
             "export_end": 13,

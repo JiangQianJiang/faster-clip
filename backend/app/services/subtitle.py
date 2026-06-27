@@ -477,7 +477,7 @@ def generate_clip_subtitles(
     ]
     written = []
     for ext, formatter in fmt_configs:
-        path = os.path.join(output_dir, f"clip_{clip_index:03d}.{ext}")
+        path = os.path.join(output_dir, f"clip_{clip_index + 1:03d}.{ext}")
         try:
             content = formatter(filtered)
             with open(path, "w", encoding="utf-8") as f:

@@ -14,23 +14,7 @@ _MERGE_TIGHT_OVERLAP = 0.85  # ratio — only keep "success" if overlap ≥85%, 
 
 
 def _merge_clips_with_existing(new_clips: list[dict], existing_clips: list[dict]) -> list[dict]:
-    """Preserve export metadata (status, filepath, download_url, etc.)
-    from existing clips that match newly-analyzed clips by timestamp.
-
-    Matching is based on overlap ratio (one-to-one): once an existing clip
-    is matched to a new clip it is removed from the candidate pool so it
-    cannot be matched again.
-
-    If the overlap is below ``_MERGE_TIGHT_OVERLAP`` the export metadata
-    is still carried over for download-URL continuity, but ``status`` is
-    reset to ``"pending"`` so the user knows the clip may need re-export.
-
-    New clips with no match get ``status: "pending"``.  Existing clips that
-    are NOT matched by any new clip are **preserved as-is** — this means
-    running analysis with different focuses accumulates clips rather than
-    replacing them (the user sees old + new cards instead of only the most
-    recent analysis).
-    """
+    """Merge AI analysis into the current clip list without moving existing clips."""
     export_keys = (
         "status",
         "filepath",
@@ -40,7 +24,7 @@ def _merge_clips_with_existing(new_clips: list[dict], existing_clips: list[dict]
         "export_start_time_s",
         "export_end_time_s",
     )
-    matched_existing: set[int] = set()
+    used_new: set[int] = set()
 
     def _overlap_ratio(a: dict, b: dict) -> float:
         """Intersection duration / min individual duration (0–1)."""
@@ -54,47 +38,61 @@ def _merge_clips_with_existing(new_clips: list[dict], existing_clips: list[dict]
             return 0.0
         return inter / min_dur
 
-    def _match(new_clip: dict) -> tuple[int | None, float]:
-        """Return (existing_index, overlap_ratio) of best *unmatched* match."""
+    def _match(existing_clip: dict) -> tuple[int | None, float]:
+        """Return (new_index, overlap_ratio) of best unused new clip."""
         best_idx = None
-        best_overlap = _MERGE_MIN_OVERLAP
-        for i, ex in enumerate(existing_clips):
-            if i in matched_existing:
+        best_overlap = 0.0
+        for i, new_clip in enumerate(new_clips):
+            if i in used_new:
                 continue
-            ratio = _overlap_ratio(new_clip, ex)
-            if ratio > best_overlap:
+            ratio = _overlap_ratio(existing_clip, new_clip)
+            if ratio >= _MERGE_MIN_OVERLAP and ratio > best_overlap:
                 best_idx = i
                 best_overlap = ratio
         return best_idx, best_overlap
 
-    merged = []
-    for nc in new_clips:
-        idx, overlap = _match(nc)
-        if idx is not None:
-            matched_existing.add(idx)
-            match = existing_clips[idx]
-            # Only carry over export metadata from *successful* exports.
-            # Failed exports (e.g. ffmpeg issues) have no valid filepaths
-            # and must be re-exported, so reset to pending.
-            if match.get("status") == "success":
-                for k in export_keys:
-                    if k in match:
-                        nc[k] = match[k]
-                # If the overlap isn't tight, the timestamps have shifted
-                # enough that the old export may not match — reset to pending.
-                if overlap < _MERGE_TIGHT_OVERLAP:
-                    nc["status"] = "pending"
-            else:
-                nc["status"] = "pending"
-        else:
-            nc.setdefault("status", "pending")
-        merged.append(nc)
+    def _update_in_place(existing_clip: dict, new_clip: dict, preserve_export_meta: bool) -> dict:
+        merged_clip = dict(existing_clip)
+        existing_clip_id = existing_clip.get("clip_id")
+        for key, value in new_clip.items():
+            if key in export_keys:
+                continue
+            if key == "clip_id" and existing_clip_id:
+                continue
+            merged_clip[key] = value
 
-    # Preserve unmatched existing clips — they represent previous analysis
-    # results (possibly already exported) that the user expects to keep.
-    for i, ec in enumerate(existing_clips):
-        if i not in matched_existing:
-            merged.append(ec)
+        if preserve_export_meta and existing_clip.get("status") == "success":
+            for key in export_keys:
+                if key in existing_clip:
+                    merged_clip[key] = existing_clip[key]
+        else:
+            for key in export_keys:
+                merged_clip.pop(key, None)
+            merged_clip["status"] = "pending"
+
+        return merged_clip
+
+    merged = []
+    for existing_clip in existing_clips:
+        idx, overlap = _match(existing_clip)
+        if idx is not None:
+            used_new.add(idx)
+            merged.append(
+                _update_in_place(
+                    existing_clip,
+                    new_clips[idx],
+                    preserve_export_meta=overlap >= _MERGE_TIGHT_OVERLAP,
+                )
+            )
+        else:
+            merged.append(existing_clip)
+
+    for i, new_clip in enumerate(new_clips):
+        if i in used_new:
+            continue
+        appended = dict(new_clip)
+        appended.setdefault("status", "pending")
+        merged.append(appended)
 
     return merged
 
@@ -322,7 +320,22 @@ class AnalyzeHighlights(Tool):
         from app.models.task import update_task_status
 
         if not validated:
-            # Clear stale clips and error state — the analysis found nothing.
+            existing_clips = json.loads(task.get("clips_json") or "[]")
+            if existing_clips:
+                update_task_status(
+                    task_id,
+                    "done",
+                    stage=None,
+                    error_message=None,
+                    failed_stage=None,
+                    empty_clips_reason=None,
+                )
+                return ToolResult(
+                    success=True,
+                    data={"clips": [], "count": 0},
+                    user_message="未找到新的符合要求的精彩片段，已保留现有片段",
+                )
+
             update_task_status(
                 task_id,
                 "done",

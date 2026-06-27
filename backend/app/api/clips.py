@@ -56,7 +56,8 @@ async def download_clip(task_id: str, clip_index: str, inline: bool = False):
     if not os.path.isfile(abs_filepath):
         raise HTTPException(404, detail="片段文件不存在")
 
-    filename = os.path.basename(abs_filepath)
+    _, ext = os.path.splitext(abs_filepath)
+    filename = f"clip_{idx + 1:03d}{ext or '.mp4'}"
     disposition = "inline" if inline else "attachment"
     return FileResponse(
         path=abs_filepath,
@@ -138,7 +139,7 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
     if clip.get("status") == "failed":
         raise HTTPException(404, detail="该片段导出失败，字幕不可用")
 
-    sub_path = OUTPUT_DIR / task_id / f"clip_{idx:03d}.{format}"
+    sub_path = OUTPUT_DIR / task_id / f"clip_{idx + 1:03d}.{format}"
     abs_path = os.path.abspath(str(sub_path))
     task_output_root = os.path.abspath(str(OUTPUT_DIR / task_id))
     if not abs_path.startswith(task_output_root + os.sep) and abs_path != task_output_root:
@@ -174,7 +175,7 @@ async def download_clip_subtitles(task_id: str, clip_index: str, format: str = "
             raise HTTPException(404, detail="字幕文件不存在")
 
     media_types = {"srt": "text/plain", "vtt": "text/plain", "ass": "text/x-ssa"}
-    filename = f"clip_{idx:03d}.{format}"
+    filename = f"clip_{idx + 1:03d}.{format}"
     return FileResponse(
         path=abs_path,
         media_type=media_types.get(format, "text/plain"),

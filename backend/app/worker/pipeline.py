@@ -61,7 +61,7 @@ def _clip_artifact_stem(index: int, clip: dict) -> str:
         safe = re.sub(r"[^A-Za-z0-9_-]+", "_", clip_id).strip("_")
         if safe:
             return f"clip_{safe}"
-    return f"clip_{index:03d}"
+    return f"clip_{index + 1:03d}"
 
 
 def _generate_preview(video_path: str, container: str) -> str | None:
@@ -375,7 +375,7 @@ def _export_clip(
         )
 
     if burn:
-        srt_path = os.path.join(output_dir, f"clip_{index:03d}.srt")
+        srt_path = os.path.join(output_dir, f"clip_{index + 1:03d}.srt")
         # Ensure SRT exists for burn-in: re-generate inline if best-effort pre-gen failed
         if not os.path.isfile(srt_path):
             from app.services.subtitle import (
@@ -453,7 +453,7 @@ def _export_clip(
     logger.info(
         "ffmpeg.execute",
         extra={
-            "command": f"ffmpeg clip_{index:03d}.mp4",
+            "command": f"ffmpeg clip_{index + 1:03d}.mp4",
             "duration_ms": round(ffmpeg_duration, 1),
             "returncode": result.returncode,
         },
@@ -462,7 +462,7 @@ def _export_clip(
         logger.error(
             "ffmpeg.execute",
             extra={
-                "command": f"ffmpeg clip_{index:03d}.mp4",
+                "command": f"ffmpeg clip_{index + 1:03d}.mp4",
                 "stderr": result.stderr[-500:],
             },
         )

@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 const taskId = "00000000-0000-0000-0000-000000000001";
 
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/tasks", async (route) => {
+  await page.route(/\/api\/tasks(?:\?.*)?$/, async (route) => {
     await route.fulfill({ contentType: "application/json", body: "[]" });
   });
 
@@ -36,6 +36,20 @@ test.beforeEach(async ({ page }) => {
     });
   });
 
+  await page.route(`**/api/tasks/${taskId}/status`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        task_id: taskId,
+        status: "done",
+        stage: null,
+        video_filename: "demo.mp4",
+        subtitle_segment_count: 2,
+        updated_at: "2026-05-28T00:00:00+00:00",
+      }),
+    });
+  });
+
   await page.route(`**/api/tasks/${taskId}/transcript`, async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -51,7 +65,7 @@ test.beforeEach(async ({ page }) => {
     });
   });
 
-  await page.route(`**/api/tasks/${taskId}/video`, async (route) => {
+  await page.route(new RegExp(`/api/tasks/${taskId}/video(?:\\?.*)?$`), async (route) => {
     await route.fulfill({ status: 404, body: "" });
   });
 });

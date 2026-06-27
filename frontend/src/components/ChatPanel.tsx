@@ -17,6 +17,30 @@ interface Props {
   onTaskChanged?: () => void;
 }
 
+const CHECKPOINT_TOOLS = [
+  "extract_embedded_subtitles",
+  "run_asr",
+  "analyze_highlights",
+  "export_clips",
+  "add_clip",
+  "refine_clips",
+  "delete_clip",
+];
+
+export function shouldRefreshTaskAfterCheckpoint(
+  messages: ChatMessage[],
+  isStreaming: boolean,
+): boolean {
+  if (isStreaming) return false;
+  const lastMsg = messages[messages.length - 1];
+  if (lastMsg?.checkpointActions?.length) return false;
+  return (
+    lastMsg?.toolCalls?.some(
+      (tc) => tc.status === "done" && CHECKPOINT_TOOLS.includes(tc.tool),
+    ) ?? false
+  );
+}
+
 function ToolCallsSummary({
   toolCalls,
   defaultExpanded,
@@ -209,11 +233,18 @@ export default function ChatPanel({
   );
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const streamHadStartedRef = useRef(false);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (isStreaming) {
+      streamHadStartedRef.current = true;
+    }
+  }, [isStreaming]);
 
   const handleSend = () => {
     if (!inputValue.trim()) return;
@@ -228,25 +259,21 @@ export default function ChatPanel({
     }
   };
 
-  const ALL_CHECKPOINT_TOOLS = [
-    "extract_embedded_subtitles", "run_asr", "analyze_highlights", "export_clips",
-    "add_clip", "refine_clips", "delete_clip",
-  ];
 
   const handleCheckpointContinue = () => {
     sendMessage("继续");
   };
 
-  // Notify parent of task changes when any checkpoint tool completes
-  const lastMsg = messages[messages.length - 1];
-  const hasCheckpointCompleted = lastMsg?.toolCalls?.some(
-    (tc) => tc.status === "done" && ALL_CHECKPOINT_TOOLS.includes(tc.tool),
-  );
+  // Refresh task data only after the stream closes. Refreshing as soon as a
+  // tool_result arrives unmounts ChatPanel before the backend saves the turn,
+  // which makes the in-flight user message disappear.
+  const shouldRefreshTask = shouldRefreshTaskAfterCheckpoint(messages, isStreaming);
   useEffect(() => {
-    if (hasCheckpointCompleted && onTaskChanged) {
+    if (shouldRefreshTask && streamHadStartedRef.current && onTaskChanged) {
+      streamHadStartedRef.current = false;
       onTaskChanged();
     }
-  }, [hasCheckpointCompleted, onTaskChanged]);
+  }, [shouldRefreshTask, onTaskChanged]);
 
   const handleRetry = () => {
     const lastUserMsg = [...messages]

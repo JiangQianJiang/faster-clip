@@ -502,7 +502,7 @@ def test_merge_clips_preserves_unmatched_existing():
 
 
 def test_merge_clips_appends_new_alongside_existing():
-    """New analysis with different focus accumulates clips."""
+    """New analysis appends clips after existing ones without moving existing positions."""
     from app.tools.user.analyze_highlights import _merge_clips_with_existing
 
     existing = [
@@ -521,24 +521,25 @@ def test_merge_clips_appends_new_alongside_existing():
 
     result = _merge_clips_with_existing(new, existing)
 
-    # Should show all 3 clips: new clips first, then unmatched existing
+    # Should show all 3 clips: existing first, then new clips appended.
     assert len(result) == 3
-    assert result[0].get("reason") == "second batch"
-    assert result[0].get("status") == "pending"
-    assert result[1].get("reason") == "third find"
+    assert result[0].get("reason") == "first batch"
+    assert result[0].get("status") == "success"
+    assert result[1].get("reason") == "second batch"
     assert result[1].get("status") == "pending"
-    assert result[2].get("reason") == "first batch"  # existing preserved (appended)
-    assert result[2].get("status") == "success"
+    assert result[2].get("reason") == "third find"
+    assert result[2].get("status") == "pending"
 
 
 def test_merge_clips_matches_overlapping_clips():
-    """Overlapping clips merge export metadata (existing behavior preserved)."""
+    """Tightly overlapping clips update in place and preserve export metadata."""
     from app.tools.user.analyze_highlights import _merge_clips_with_existing
 
     existing = [
         {
             "start_time_s": 5,
             "end_time_s": 15,
+            "clip_id": "stable-id",
             "status": "success",
             "filepath": "/tmp/c0.mp4",
             "thumbnail_path": "/tmp/t0.jpg",
@@ -551,6 +552,10 @@ def test_merge_clips_matches_overlapping_clips():
     result = _merge_clips_with_existing(new, existing)
 
     assert len(result) == 1  # matched, no duplicates
+    assert result[0]["clip_id"] == "stable-id"
+    assert result[0]["start_time_s"] == 5.5
+    assert result[0]["end_time_s"] == 14.5
+    assert result[0]["reason"] == "same clip"
     assert result[0]["status"] == "success"  # preserved from existing
     assert result[0]["filepath"] == "/tmp/c0.mp4"
     assert result[0]["thumbnail_path"] == "/tmp/t0.jpg"
@@ -573,7 +578,7 @@ def test_merge_clips_empty_existing():
 
 
 def test_merge_clips_loose_overlap_resets_status():
-    """Overlap below _MERGE_TIGHT_OVERLAP: metadata carried but status reset to pending."""
+    """Loose overlap updates in place and clears invalid export metadata."""
     from app.tools.user.analyze_highlights import _merge_clips_with_existing
 
     # 55% overlap (< 85% tight threshold)
@@ -583,6 +588,7 @@ def test_merge_clips_loose_overlap_resets_status():
             "end_time_s": 10,
             "status": "success",
             "filepath": "/tmp/c0.mp4",
+            "thumbnail_path": "/tmp/t0.jpg",
         },
     ]
     new = [
@@ -593,7 +599,66 @@ def test_merge_clips_loose_overlap_resets_status():
 
     assert len(result) == 1
     assert result[0]["status"] == "pending"  # reset because overlap < 85%
-    assert result[0]["filepath"] == "/tmp/c0.mp4"  # but path is carried
+    assert result[0]["start_time_s"] == 4
+    assert result[0]["end_time_s"] == 14.0
+    assert "filepath" not in result[0]
+    assert "thumbnail_path" not in result[0]
+
+
+def test_analyze_highlights_empty_result_preserves_existing_clips(tmp_path):
+    """Empty analysis results must not clear previously saved clips."""
+    import asyncio
+
+    from app.models.task import create_task, get_task, init_db, update_task_status
+    from app.tools.user.analyze_highlights import _analyze_highlights
+
+    init_db()
+    video_path = tmp_path / "source.mp4"
+    video_path.write_bytes(b"fake video")
+    task_id = create_task(
+        str(video_path),
+        "source.mp4",
+        {
+            "llm_base_url": "https://llm.test",
+            "llm_model": "model",
+            "clip_min_duration": 5,
+            "clip_max_duration": 30,
+        },
+    )
+    existing = [
+        {
+            "start_time_s": 1,
+            "end_time_s": 8,
+            "score": 8,
+            "reason": "keep me",
+            "status": "success",
+            "filepath": "/tmp/clip_001.mp4",
+        }
+    ]
+    update_task_status(task_id, "done", clips_json=json.dumps(existing))
+
+    output_dir = tmp_path / "output"
+    transcript_dir = output_dir / task_id
+    transcript_dir.mkdir(parents=True)
+    (transcript_dir / "transcript.json").write_text(
+        json.dumps([{"start_time_s": 0, "end_time_s": 10, "text": "hello"}]),
+        encoding="utf-8",
+    )
+
+    with (
+        patch("app.tools.user.analyze_highlights.OUTPUT_DIR", output_dir),
+        patch("app.services.analyzer.build_prompt", return_value="prompt"),
+        patch("app.services.analyzer.analyze", return_value=[]),
+        patch("app.services.analyzer.validate_clips", return_value=[]),
+    ):
+        result = asyncio.run(
+            _analyze_highlights.execute(task_id=task_id, _runtime_api_key="test-key")
+        )
+
+    assert result.success is True
+    task = get_task(task_id)
+    assert json.loads(task["clips_json"]) == existing
+    assert task["empty_clips_reason"] is None
 
 
 def test_get_task_status_is_user_facing():
