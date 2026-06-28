@@ -425,7 +425,22 @@ def _export_clip(
             out_video,
         ]
     else:
-        cmd = [
+        copy_cmd = [
+            "ffmpeg",
+            "-y",
+            "-ss",
+            str(export_start),
+            "-to",
+            str(export_end),
+            "-i",
+            video_path,
+            "-c",
+            "copy",
+            "-movflags",
+            "+faststart",
+            out_video,
+        ]
+        transcode_cmd = [
             "ffmpeg",
             "-y",
             "-ss",
@@ -444,6 +459,7 @@ def _export_clip(
             "+faststart",
             out_video,
         ]
+        cmd = copy_cmd
 
     ffmpeg_start = time_mod.monotonic()
     result = subprocess.run(
@@ -458,6 +474,28 @@ def _export_clip(
             "returncode": result.returncode,
         },
     )
+    if not burn and result.returncode != 0:
+        logger.warning(
+            "ffmpeg.stream_copy_failed",
+            extra={
+                "command": f"ffmpeg copy clip_{index + 1:03d}.mp4",
+                "stderr": result.stderr[-500:] if result.stderr else "",
+            },
+        )
+        cmd = transcode_cmd
+        ffmpeg_start = time_mod.monotonic()
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=settings.ffmpeg_timeout_seconds
+        )
+        ffmpeg_duration = (time_mod.monotonic() - ffmpeg_start) * 1000
+        logger.info(
+            "ffmpeg.execute",
+            extra={
+                "command": f"ffmpeg transcode clip_{index + 1:03d}.mp4",
+                "duration_ms": round(ffmpeg_duration, 1),
+                "returncode": result.returncode,
+            },
+        )
     if result.returncode != 0:
         logger.error(
             "ffmpeg.execute",

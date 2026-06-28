@@ -84,3 +84,61 @@ def test_thumbnail_file_missing_raises_runtime_error():
             assert "缩略图生成失败" in str(e)
             raised = True
         assert raised, "should have raised RuntimeError"
+
+
+def test_export_clip_without_subtitles_uses_stream_copy_first(tmp_path):
+    """Non-burn exports should prefer fast stream copy before transcoding."""
+    commands = []
+
+    def fake_run(cmd, capture_output=True, text=True, timeout=None):
+        commands.append(cmd)
+        result = MagicMock()
+        result.returncode = 0
+        result.stderr = ""
+        return result
+
+    with (
+        patch("subprocess.run", side_effect=fake_run),
+        patch("os.path.isfile", return_value=True),
+    ):
+        _export_clip(
+            "/fake/video.mp4",
+            str(tmp_path),
+            0,
+            {"start_time_s": 10.0, "end_time_s": 50.0},
+            buffer=3,
+            burn=False,
+        )
+
+    assert commands[0].count("-c") == 1
+    assert commands[0][commands[0].index("-c") + 1] == "copy"
+    assert "libx264" not in commands[0]
+
+
+def test_export_clip_falls_back_to_transcode_when_stream_copy_fails(tmp_path):
+    """A failed stream-copy attempt should retry with the existing transcode command."""
+    commands = []
+
+    def fake_run(cmd, capture_output=True, text=True, timeout=None):
+        commands.append(cmd)
+        result = MagicMock()
+        result.returncode = 1 if len(commands) == 1 else 0
+        result.stderr = "copy failed" if len(commands) == 1 else ""
+        return result
+
+    with (
+        patch("subprocess.run", side_effect=fake_run),
+        patch("os.path.isfile", return_value=True),
+    ):
+        _export_clip(
+            "/fake/video.mp4",
+            str(tmp_path),
+            0,
+            {"start_time_s": 10.0, "end_time_s": 50.0},
+            buffer=3,
+            burn=False,
+        )
+
+    assert commands[0][commands[0].index("-c") + 1] == "copy"
+    assert commands[1][commands[1].index("-c:v") + 1] == "libx264"
+    assert commands[1][commands[1].index("-c:a") + 1] == "aac"
