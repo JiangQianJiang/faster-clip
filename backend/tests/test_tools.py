@@ -561,6 +561,42 @@ def test_merge_clips_matches_overlapping_clips():
     assert result[0]["thumbnail_path"] == "/tmp/t0.jpg"
 
 
+def test_merge_clips_resets_export_metadata_when_new_clip_exceeds_export_window():
+    """A success clip must become pending if re-analysis extends past the exported file."""
+    from app.tools.user.analyze_highlights import _merge_clips_with_existing
+
+    existing = [
+        {
+            "start_time_s": 199.5,
+            "end_time_s": 278.43,
+            "status": "success",
+            "filepath": "/tmp/clip_002.mp4",
+            "thumbnail_path": "/tmp/clip_002.jpg",
+            "export_start_time_s": 196.5,
+            "export_end_time_s": 281.43,
+        },
+    ]
+    new = [
+        {
+            "start_time_s": 199.5,
+            "end_time_s": 284.51,
+            "score": 8.5,
+            "reason": "same moment, longer ending",
+        },
+    ]
+
+    result = _merge_clips_with_existing(new, existing)
+
+    assert len(result) == 1
+    assert result[0]["status"] == "pending"
+    assert result[0]["start_time_s"] == 199.5
+    assert result[0]["end_time_s"] == 284.51
+    assert "filepath" not in result[0]
+    assert "thumbnail_path" not in result[0]
+    assert "export_start_time_s" not in result[0]
+    assert "export_end_time_s" not in result[0]
+
+
 def test_merge_clips_empty_existing():
     """Empty existing clips: all new clips get pending status."""
     from app.tools.user.analyze_highlights import _merge_clips_with_existing

@@ -38,6 +38,31 @@ def _merge_clips_with_existing(new_clips: list[dict], existing_clips: list[dict]
             return 0.0
         return inter / min_dur
 
+    def _export_window_covers(existing_clip: dict, new_clip: dict) -> bool:
+        """True when the already-exported file covers the new logical clip."""
+        if existing_clip.get("status") != "success":
+            return False
+        if not existing_clip.get("filepath"):
+            return False
+
+        export_start = existing_clip.get("export_start_time_s")
+        export_end = existing_clip.get("export_end_time_s")
+        if export_start is None:
+            export_start = existing_clip.get("start_time_s")
+        if export_end is None:
+            export_end = existing_clip.get("end_time_s")
+
+        try:
+            export_start_f = float(export_start)
+            export_end_f = float(export_end)
+            new_start_f = float(new_clip.get("start_time_s", 0))
+            new_end_f = float(new_clip.get("end_time_s", 0))
+        except (TypeError, ValueError):
+            return False
+
+        tolerance = 0.05
+        return export_start_f <= new_start_f + tolerance and export_end_f + tolerance >= new_end_f
+
     def _match(existing_clip: dict) -> tuple[int | None, float]:
         """Return (new_index, overlap_ratio) of best unused new clip."""
         best_idx = None
@@ -81,7 +106,10 @@ def _merge_clips_with_existing(new_clips: list[dict], existing_clips: list[dict]
                 _update_in_place(
                     existing_clip,
                     new_clips[idx],
-                    preserve_export_meta=overlap >= _MERGE_TIGHT_OVERLAP,
+                    preserve_export_meta=(
+                        overlap >= _MERGE_TIGHT_OVERLAP
+                        and _export_window_covers(existing_clip, new_clips[idx])
+                    ),
                 )
             )
         else:
