@@ -435,7 +435,8 @@ async def get_task_endpoint(task_id: str):
 
     clips = resp["clips"]
     for i, clip in enumerate(clips):
-        clip["download_url"] = f"/api/tasks/{task['id']}/clips/{i}/download"
+        if clip.get("status") != "failed" and clip.get("filepath"):
+            clip["download_url"] = f"/api/tasks/{task['id']}/clips/{i}/download"
         if clip.get("thumbnail_path"):
             clip["thumbnail_url"] = f"/api/tasks/{task['id']}/clips/{i}/thumbnail"
 

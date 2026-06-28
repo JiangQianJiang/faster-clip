@@ -195,6 +195,46 @@ def test_download_rejects_path_traversal():
         os.unlink(db_path)
 
 
+def test_get_task_omits_download_url_for_pending_clip_without_file():
+    """GET task should not advertise a download URL that will always 404."""
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+        db_path = tmp.name
+    try:
+        _setup_temp_db(db_path)
+        task_id = "11111111-1111-1111-1111-111111111111"
+        _insert_task(
+            db_path,
+            task_id,
+            [
+                {
+                    "start_time_s": 10,
+                    "end_time_s": 20,
+                    "status": "pending",
+                    "reason": "not exported yet",
+                },
+                {
+                    "start_time_s": 30,
+                    "end_time_s": 40,
+                    "status": "success",
+                    "filepath": f"data/output/{task_id}/clip_001.mp4",
+                    "thumbnail_path": f"data/output/{task_id}/clip_001.jpg",
+                },
+            ],
+        )
+        client = _make_client()
+
+        response = client.get(f"/api/tasks/{task_id}")
+
+        assert response.status_code == 200
+        clips = response.json()["clips"]
+        assert "download_url" not in clips[0]
+        assert "thumbnail_url" not in clips[0]
+        assert clips[1]["download_url"] == f"/api/tasks/{task_id}/clips/1/download"
+        assert clips[1]["thumbnail_url"] == f"/api/tasks/{task_id}/clips/1/thumbnail"
+    finally:
+        os.unlink(db_path)
+
+
 def test_get_task_includes_media_info_from_db_cache():
     """GET task returns fps metadata from DB cache (no ffprobe call)."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
