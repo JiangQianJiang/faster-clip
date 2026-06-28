@@ -34,14 +34,20 @@ class WorkflowRuntime:
             return "exporting"
 
         clips = WorkflowRuntime._load_clips(task.get("clips_json"))
-        has_exported_clip = any(
-            clip.get("status") == "success" or clip.get("filepath") for clip in clips
+        has_clips = bool(clips)
+        has_pending_clip = any(
+            clip.get("status", "pending") == "pending" and not clip.get("filepath")
+            for clip in clips
         )
+        has_exported_clip = any(
+            clip.get("status") == "success" and bool(clip.get("filepath")) for clip in clips
+        )
+        all_exportable_clips_exported = has_clips and has_exported_clip and not has_pending_clip
         if (
             "exported" in status
             or "exported" in stage
             or stage in {"exported", "export_complete"}
-            or has_exported_clip
+            or all_exportable_clips_exported
         ):
             return "exported"
         if clips:

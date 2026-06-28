@@ -318,6 +318,31 @@ def test_workflow_runtime_exported_requires_export_signal(tmp_path, monkeypatch)
     assert WorkflowRuntime.get_task_state(get_task(task_id)) == "exported"
 
 
+def test_workflow_runtime_mixed_pending_and_success_clips_is_clips_ready(tmp_path, monkeypatch):
+    task_id = _make_task(tmp_path, monkeypatch)
+    task_model.update_task_status(
+        task_id,
+        "done",
+        clips_json=json.dumps(
+            [
+                {"start_time_s": 10, "end_time_s": 20, "status": "pending"},
+                {
+                    "start_time_s": 30,
+                    "end_time_s": 40,
+                    "status": "success",
+                    "filepath": "/tmp/export.mp4",
+                },
+            ]
+        ),
+        subtitle_segment_count=1,
+    )
+
+    from app.models.task import get_task
+    from app.services.workflow_runtime import WorkflowRuntime
+
+    assert WorkflowRuntime.get_task_state(get_task(task_id)) == "clips_ready"
+
+
 def test_workflow_runtime_preserves_async_export_processing_state(tmp_path, monkeypatch):
     task_id = _make_task(tmp_path, monkeypatch)
     task_model.update_task_status(task_id, "processing", stage="ai_exporting")
