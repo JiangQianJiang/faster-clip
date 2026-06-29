@@ -4,6 +4,7 @@ agents.md
 .humanize/
 .superpowers/
 .worktrees/
+docs/
 
 # Python
 __pycache__/
